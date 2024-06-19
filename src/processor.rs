@@ -54,7 +54,7 @@ pub fn process<'a>(
         .map_err(|x| ProgramError::BorshIoError(x.to_string()))?;
 
     // Transform account list to iterable object
-    let accounts_iter: &mut Iter<'a, AccountInfo<'a>> = &mut accounts.into_iter();
+    let accounts_iter: &mut Iter<'a, AccountInfo<'a>> = &mut accounts.iter();
 
     // Signer is always needed, validating it
     let signer = next_account_info(accounts_iter)?;
@@ -140,9 +140,9 @@ pub fn process<'a>(
 }
 
 /// Create vesting instruction logic
-pub fn create_vesting<'a>(
+pub fn create_vesting(
     program_id: &Pubkey,
-    accounts: &Accounts<'a>,
+    accounts: &Accounts<'_>,
     user: Pubkey,
     nonce: u64,
     amount: u64,
@@ -196,12 +196,7 @@ pub fn create_vesting<'a>(
 }
 
 /// Claim vesting instruction logic
-pub fn claim<'a>(
-    program_id: &Pubkey,
-    accounts: &Accounts,
-    user: Pubkey,
-    nonce: u64,
-) -> ProgramResult {
+pub fn claim(program_id: &Pubkey, accounts: &Accounts, user: Pubkey, nonce: u64) -> ProgramResult {
     // Get vesting data
     let mut vesting_data = Vesting::get_data(accounts.vesting)?;
 
@@ -261,5 +256,5 @@ fn calculate_amount(
     // Due to `u64 * u64 = u128` and `passed / duration <= 1` we have no overflow and best precision
     let calculated_amount = (vesting_amount as u128 * passed as u128 / duration as u128) as u64;
 
-    return Ok(calculated_amount);
+    Ok(calculated_amount)
 }

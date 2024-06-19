@@ -28,7 +28,7 @@ pub fn create_pda<'a, T: PDA>(
     assert!(pda.is_writable);
 
     // Get `bump` seed and check `pda` corresponds seeds
-    let (calculated_key, bump) = Pubkey::find_program_address(pda_seeds, &program_id);
+    let (calculated_key, bump) = Pubkey::find_program_address(pda_seeds, program_id);
     assert!(*pda.key == calculated_key);
 
     // Get balance for rent exemption
@@ -59,7 +59,7 @@ pub fn check_expected_address(
     pda_seeds: &[&[u8]],
 ) -> Result<(), ProgramError> {
     // Get PDA лун from seeds and compare
-    let (calculated_key, _) = Pubkey::find_program_address(pda_seeds, &program_id);
+    let (calculated_key, _) = Pubkey::find_program_address(pda_seeds, program_id);
     if *pda.key != calculated_key {
         return Err(ProgramError::Custom(CustomError::InvalidPDAKey.into()));
     }
@@ -141,7 +141,7 @@ pub fn transfer_from_pda<'a>(
     assert!(*wallet.owner == spl_token::id());
 
     // Get `bump` seed and check `pda` corresponds seeds
-    let (calculated_key, bump) = Pubkey::find_program_address(pda_seeds, &program_id);
+    let (calculated_key, bump) = Pubkey::find_program_address(pda_seeds, program_id);
     assert!(*pda.key == calculated_key);
 
     // Invoke `Transfer`, instruction requires `pda` to be signer

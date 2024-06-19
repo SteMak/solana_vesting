@@ -13,7 +13,7 @@ const VAULT_SEED: &[u8] = "VAULT".as_bytes();
 impl PDA for Vault {
     /// Get account data size
     fn size() -> usize {
-        return std::mem::size_of::<Account>();
+        std::mem::size_of::<Account>()
     }
 }
 
@@ -116,7 +116,7 @@ const VESTING_SEED: &[u8] = "VESTING".as_bytes();
 impl PDA for Vesting {
     /// Get account data size
     fn size() -> usize {
-        return std::mem::size_of::<Vesting>();
+        std::mem::size_of::<Vesting>()
     }
 }
 
