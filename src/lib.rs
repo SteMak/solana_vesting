@@ -1,236 +1,209 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use pda::Vault;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     clock::Clock,
     entrypoint,
     entrypoint::ProgramResult,
-    instruction::{AccountMeta, Instruction},
     program_error::ProgramError,
     pubkey::Pubkey,
-    sysvar::Sysvar, program::{invoke, invoke_signed},
+    sysvar::Sysvar,
 };
-
-use spl_token::{self};
 use std::slice::Iter;
 
 pub mod pda;
-
-use crate::pda::{State, Vesting};
-
-// user => vesting
+use crate::pda::Vesting;
 
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub enum VestingInstruction {
-    Initialize {
-        owner: Pubkey,
-        token_mint: Pubkey,
-    },
-    CreateVestingSchedule {
+    CreateVesting {
         user: Pubkey,
+        nonce: u64,
+
         amount: u64,
-        start_date: u64,
+
+        start: u64,
         cliff: u64,
         duration: u64,
     },
-    Claim {},
-}
 
-//
-// Linear, One Token, Flexible for owner
-//
-// Vesting:
-// - Duration
-// - Amount
-// - Cliff - time
-// - Start date
-//
-//
-// Accounts
-// - Program
-// - State
-// - (Single) Vault for the vesting token
-// - (Multiple) Vesting data per user
-//
+    Claim {
+        user: Pubkey,
+        nonce: u64,
+    },
+}
 
 pub struct Accounts<'a> {
     pub signer: &'a AccountInfo<'a>,
-    pub state: &'a AccountInfo<'a>,
-    pub vesting: Option<&'a AccountInfo<'a>>,
-    pub wallet: Option<&'a AccountInfo<'a>>,
-    pub funds_storage: Option<&'a AccountInfo<'a>>,
+    pub mint: &'a AccountInfo<'a>,
+
+    pub vesting: &'a AccountInfo<'a>,
+    pub vault: &'a AccountInfo<'a>,
+    pub wallet: &'a AccountInfo<'a>,
 }
 
-// Declare and export the program's entrypoint
 entrypoint!(process_instruction);
 
-// Program entrypoint's implementation
 pub fn process_instruction<'a>(
-    program_id: &Pubkey, // Public key of the account the hello world program was loaded into
-    infos: &'a [AccountInfo<'a>], // The account to say hello to
-    instruction_data: &[u8], // Ignored, all helloworld instructions are hellos
+    program_id: &Pubkey,
+    accounts: &'a [AccountInfo<'a>],
+    instruction_data: &[u8],
 ) -> ProgramResult {
-    let instruction = VestingInstruction::try_from_slice(instruction_data)?;
+    let instruction = VestingInstruction::try_from_slice(instruction_data)
+        .map_err(|x| ProgramError::BorshIoError(x.to_string()))?;
 
-    let it: &mut Iter<'a, AccountInfo<'a>> = &mut infos.into_iter();
+    let accounts_iter: &mut Iter<'a, AccountInfo<'a>> = &mut accounts.into_iter();
 
-    let signer = next_account_info(it)?;
+    let signer = next_account_info(accounts_iter)?;
     if !signer.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
 
-    let state = next_account_info(it)?;
-    State::check_info(state, program_id)?;
+    let mint = next_account_info(accounts_iter)?;
 
-    let mut accounts = &mut Accounts {
-        state,
-        signer,
-        vesting: None,
-        wallet: None,
-        funds_storage: None,
-    };
+    let wallet: &AccountInfo = next_account_info(accounts_iter)?;
 
     match instruction {
-        VestingInstruction::Initialize { owner, token_mint } => {
-            let funds_storage = next_account_info(it)?;
-            accounts.funds_storage = Some(funds_storage);
-
-            initialize(program_id, accounts, owner, token_mint)
-        }
-        VestingInstruction::CreateVestingSchedule {
+        VestingInstruction::CreateVesting {
             user,
+            nonce,
             amount,
-            start_date,
+            start,
             cliff,
             duration,
         } => {
-            let vesting = next_account_info(it)?;
-            Vesting::check_info(vesting, program_id, user)?;
+            let vesting: &AccountInfo = next_account_info(accounts_iter)?;
+            Vesting::check_info(vesting, program_id, mint.key, user, nonce)?;
 
-            accounts.vesting = Some(vesting);
+            let vault: &AccountInfo = next_account_info(accounts_iter)?;
+            Vault::check_info(vesting, program_id, mint.key, user, nonce)?;
 
-            create_vesting_schedule(
-                program_id, accounts, user, amount, start_date, cliff, duration,
+            let accounts = &Accounts {
+                signer,
+                mint,
+                vesting,
+                vault,
+                wallet,
+            };
+            create_vesting(
+                program_id, accounts, user, nonce, amount, start, cliff, duration,
             )
         }
-        VestingInstruction::Claim {} => {
-            let vesting = next_account_info(it)?;
-            Vesting::check_info(vesting, program_id, *accounts.signer.key)?;
 
-            accounts.vesting = Some(vesting);
+        VestingInstruction::Claim { user, nonce } => {
+            let vesting: &AccountInfo = next_account_info(accounts_iter)?;
+            Vesting::check_info(vesting, program_id, mint.key, user, nonce)?;
 
-            claim(program_id, accounts)
+            let vault: &AccountInfo = next_account_info(accounts_iter)?;
+            Vault::check_info(vesting, program_id, mint.key, user, nonce)?;
+
+            let accounts = &Accounts {
+                signer,
+                mint,
+                vesting,
+                vault,
+                wallet,
+            };
+
+            claim(program_id, accounts, user, nonce)
         }
     }
 }
 
-fn initialize(
-    program_id: &Pubkey,
-    accounts: &Accounts,
-    owner: Pubkey,
-    token_mint: Pubkey,
-) -> ProgramResult {
-    State::create(program_id, accounts.signer, accounts.state)?;
-
-    let instruction = spl_token::instruction::initialize_account3(
-        &spl_token::id(),
-        accounts.funds_storage.unwrap().key,
-        &token_mint,
-        &program_id,
-    )?;
-    invoke(&instruction, &[accounts.signer.clone()])?;
-    State { owner, token_mint }.set_data(accounts.state)?;
-
-    Ok(())
-}
-
-//The owner able to create new vesting schedules.
-fn create_vesting_schedule<'a, 'b>(
+fn create_vesting<'a, 'b>(
     program_id: &Pubkey,
     accounts: &Accounts<'a>,
     user: Pubkey,
+    nonce: u64,
     amount: u64,
-    start_date: u64,
+    start: u64,
     cliff: u64,
     duration: u64,
 ) -> ProgramResult {
-    // Deserialize the state to access owner pubkey
-    let state_data = State::get_data(accounts.state)?;
-    if state_data.owner != *accounts.signer.key {
-        return Err(ProgramError::IllegalOwner);
+    if cliff > duration {
+        return Err(ProgramError::Custom(0));
+    }
+    if amount == 0 {
+        return Err(ProgramError::Custom(0));
     }
 
-    // TODO check that if account exist it is not overwritten
-
-    // Create a new vesting schedule
     let new_vesting_schedule = Vesting {
-        duration,
         amount,
-        cliff,
-        start_date,
         claimed: 0,
+
+        start,
+        cliff,
+        duration,
     };
 
-    Vesting::create(program_id, accounts.signer, accounts.vesting.unwrap(), user)?;
-
-    new_vesting_schedule.set_data(accounts.vesting.unwrap())?;
-
-    let instruction = spl_token::instruction::transfer(
-        &spl_token::id(),
-        accounts.wallet.unwrap().key,
-        accounts.funds_storage.unwrap().key,
-        accounts.signer.key,
-        &[accounts.signer.key],
-        amount
+    Vesting::create(
+        accounts.vesting,
+        program_id,
+        accounts.signer,
+        accounts.mint.key,
+        user,
+        nonce,
     )?;
-    invoke(&instruction, &[accounts.signer.clone()])?;
+
+    new_vesting_schedule.set_data(accounts.vesting)?;
+
+    Vault::create(
+        accounts.vault,
+        program_id,
+        accounts.signer,
+        accounts.mint,
+        user,
+        nonce,
+    )?;
+
+    Vault::transfer_in(accounts.vault, accounts.wallet, accounts.signer, amount)?;
 
     Ok(())
 }
 
-fn claim<'a>(program_id: &Pubkey, accounts: &Accounts) -> ProgramResult {
-    let mut vesting_data = Vesting::get_data(accounts.vesting.unwrap())?;
+fn claim<'a>(program_id: &Pubkey, accounts: &Accounts, user: Pubkey, nonce: u64) -> ProgramResult {
+    let mut vesting_data = Vesting::get_data(accounts.vesting)?;
 
     let clock = &Clock::get()?;
 
     let total = calculate_amount(
-        vesting_data.start_date,
+        vesting_data.start,
         vesting_data.cliff,
         vesting_data.duration,
         vesting_data.amount,
         clock.unix_timestamp as u64,
     )?;
 
-    let instruction = spl_token::instruction::transfer(
-        &spl_token::id(),
-        accounts.funds_storage.unwrap().key,
-        accounts.wallet.unwrap().key,
-        accounts.signer.key,
-        &[accounts.signer.key],
-        total - vesting_data.claimed
+    Vault::transfer_out(
+        accounts.vault,
+        program_id,
+        accounts.wallet,
+        accounts.mint.key,
+        user,
+        nonce,
+        total - vesting_data.claimed,
     )?;
-    invoke(&instruction, &[accounts.signer.clone()])?;
 
     vesting_data.claimed = total;
-    vesting_data.set_data(accounts.vesting.unwrap())?;
+    vesting_data.set_data(accounts.vesting)?;
 
     Ok(())
 }
 
 fn calculate_amount(
-    start_date: u64,
+    start: u64,
     cliff: u64,
     duration: u64,
     vesting_amount: u64,
     now: u64,
 ) -> Result<u64, ProgramError> {
-    if cliff > now {
+    if start + cliff > now {
         return Ok(0);
     }
 
-    let time_passed = now - start_date;
-    let calculated_amount = (time_passed / duration) * vesting_amount;
+    let time_passed = now - start;
+    let calculated_amount = vesting_amount * time_passed / duration;
 
-    //Should check how many token claimed before and substract from the calculated_amount
     return Ok(calculated_amount);
 }
 
