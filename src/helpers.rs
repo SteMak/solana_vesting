@@ -5,7 +5,6 @@ use solana_program::{
     pubkey::Pubkey,
     rent::Rent,
     system_instruction,
-    sysvar::Sysvar,
 };
 
 use crate::error::CustomError;
@@ -33,7 +32,13 @@ pub fn create_pda<'a, T: PDA>(
     assert!(*pda.key == calculated_key);
 
     // Get balance for rent exemption
+
+    // Hack to make tests work
+    #[cfg(target_os = "solana")]
     let rent = Rent::get()?;
+    #[cfg(not(target_os = "solana"))]
+    let rent = Rent::default();
+
     let space = T::size();
     let lamports = rent.minimum_balance(space);
 
@@ -94,8 +99,8 @@ pub fn transfer_to_pda<'a>(
     signer: &AccountInfo<'a>,
     amount: u64,
 ) -> Result<(), ProgramError> {
-    // `Transfer` instruction requires `wallet` to be writable signer and `pda` to be writable
-    assert!(wallet.is_signer);
+    // `Transfer` instruction requires `signer` to be signer, `wallet` and `pda` to be writable
+    assert!(signer.is_signer);
     assert!(wallet.is_writable);
     assert!(pda.is_writable);
 

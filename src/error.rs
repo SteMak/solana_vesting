@@ -3,6 +3,7 @@
 pub enum CustomError {
     InvalidPDAKey = 101,
     NotOwnedByTokenProgram = 102,
+    UnauthorizedClaimer = 103,
 }
 
 impl From<CustomError> for u32 {

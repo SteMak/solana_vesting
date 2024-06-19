@@ -18,180 +18,251 @@ pub fn process_instruction<'a>(
     processor::process(program_id, accounts, instruction_data)
 }
 
-// // Sanity tests
-// #[cfg(test)]
-// mod test {
-//     use super::*;
-//     use solana_program::{clock::Epoch, instruction::AccountMeta};
-//     use solana_program_test::*;
-//     use solana_sdk::{account::Account, account_info::AccountInfo, pubkey::Pubkey, rent::Rent};
-//     use std::str::FromStr;
+/// Sanity tests
+#[cfg(test)]
+mod test {
+    use crate::pda::*;
+    use crate::processor::*;
 
-//     #[derive(BorshSerialize, BorshDeserialize)]
-//     struct MockRent {
-//         lamports_per_byte_year: u64,
-//         exemption_threshold: f64,
-//         burn_percent: u8,
-//     }
+    use borsh::{BorshDeserialize, BorshSerialize};
+    use solana_program::clock::Epoch;
+    use solana_sdk::clock::Clock;
+    use solana_sdk::program_pack::Pack;
+    use solana_sdk::signature::Keypair;
+    use solana_sdk::signer::Signer;
+    use solana_sdk::{account_info::AccountInfo, pubkey::Pubkey, rent::Rent, sysvar::rent};
+    use spl_token::instruction::TokenInstruction;
+    use spl_token::state::Account;
+    use spl_token::state::Mint;
+    use std::mem;
 
-//     #[test]
-//     fn test_sanity() {
-//         let program_id = Pubkey::default();
-//         let key = rent::id();
-//         let mut lamports = 0;
-//         let mock_rent = MockRent {
-//             lamports_per_byte_year: 3, // example value
-//             exemption_threshold: 2.0,  // example value
-//             burn_percent: 10,          // example value
-//         };
-//         let serialized_rent = mock_rent.try_to_vec().unwrap();
-//         let mut data = serialized_rent; // Now data contains a serialized Rent object
-//         let owner = Pubkey::default();
-//         let account = AccountInfo::new(
-//             &key,
-//             false,
-//             false,
-//             &mut lamports,
-//             &mut data,
-//             &owner,
-//             true,
-//             Epoch::default(),
-//         );
+    #[test]
+    fn create_token() {
+        let no_account = Pubkey::default();
+        let spl_id = &spl_token::id();
+        let program_id = &Pubkey::new_unique();
 
-//         let instruction_data: Vec<u8> = VestingInstruction::Initialize {
-//             owner: Pubkey::default(),
-//         }
-//         .try_to_vec()
-//         .unwrap();
+        let vester_keypair = Keypair::new();
+        let vester_key = vester_keypair.pubkey();
+        let vester_bal = &mut 100000000000000;
+        let vester = AccountInfo::new(
+            &vester_key,
+            true,
+            true,
+            vester_bal,
+            &mut [],
+            &no_account,
+            false,
+            Epoch::default(),
+        );
 
-//         let accounts: Vec<AccountInfo<'_>> = vec![
-//             account.clone(),
-//             account.clone(),
-//             account.clone(),
-//             account.clone(),
-//             account.clone(),
-//         ];
+        let claimer_keypair = Keypair::new();
+        let claimer_key = claimer_keypair.pubkey();
+        let claimer_bal = &mut 100000000000000;
+        let claimer = AccountInfo::new(
+            &claimer_key,
+            true,
+            true,
+            claimer_bal,
+            &mut [],
+            &no_account,
+            false,
+            Epoch::default(),
+        );
 
-//         process_instruction(&program_id, &accounts, &instruction_data).unwrap();
+        let rent_key = rent::id();
 
-//         // assert_eq!(
-//         //     GreetingAccount::try_from_slice(&accounts[0].data.borrow())
-//         //         .unwrap()
-//         //         .counter,
-//         //     0
-//         // );
-//     }
+        #[derive(BorshSerialize, BorshDeserialize)]
+        struct MockRent {
+            lamports_per_byte_year: u64,
+            exemption_threshold: f64,
+            burn_percent: u8,
+        }
 
-//     #[test]
-//     fn test_create_vesting_schedule() {
-//         let program_id = Pubkey::new_unique();
-//         let owner_key = Pubkey::new_unique();
-//         let user_key = Pubkey::new_unique();
-//         let state_key = Pubkey::new_unique();
-//         let vesting_account_key = Pubkey::new_unique();
-//         let mut lamports = Rent::default().minimum_balance(std::mem::size_of::<State>());
-//         let state = State {
-//             owner: owner_key,
-//             token: Pubkey::default(), // Assuming a default token for simplicity
-//         };
+        let rent_data = &mut MockRent {
+            lamports_per_byte_year: Rent::default().lamports_per_byte_year,
+            exemption_threshold: Rent::default().exemption_threshold,
+            burn_percent: Rent::default().burn_percent,
+        }
+        .try_to_vec()
+        .unwrap();
+        let rent_bal = &mut Rent::default().minimum_balance(mem::size_of::<MockRent>());
 
-//         let mut lamports_for_owner = 0;
-//         let mut lamports_for_vesting =
-//             Rent::default().minimum_balance(std::mem::size_of::<Vesting>());
-//         let mut lamports_for_state = Rent::default().minimum_balance(std::mem::size_of::<State>());
-//         let mut lamports_for_rent = 0;
+        let rent = AccountInfo::new(
+            &rent_key,
+            false,
+            false,
+            rent_bal,
+            rent_data,
+            &no_account,
+            false,
+            Epoch::default(),
+        );
 
-//         let mut state_account = Account::new(0, 0, &program_id);
+        let mint_key = &Pubkey::new_unique();
+        let mint_bal = &mut Rent::default().minimum_balance(mem::size_of::<Mint>());
+        let mint_data = &mut vec![0; Mint::LEN];
 
-//         let mut vesting_account =
-//             Account::new(lamports, std::mem::size_of::<Vesting>(), &program_id);
+        let mint = AccountInfo::new(
+            mint_key,
+            false,
+            true,
+            mint_bal,
+            mint_data,
+            spl_id,
+            false,
+            Epoch::default(),
+        );
 
-//         let rent_key = rent::id();
-//         let mock_rent = MockRent {
-//             lamports_per_byte_year: 3, // example value
-//             exemption_threshold: 2.0,  // example value
-//             burn_percent: 10,          // example value
-//         };
-//         let serialized_rent = mock_rent.try_to_vec().unwrap();
-//         let mut data = serialized_rent; // Now data contains a serialized Rent object
+        spl_token::processor::Processor::process(
+            spl_id,
+            &[mint.clone(), rent.clone()],
+            &TokenInstruction::InitializeMint {
+                mint_authority: no_account,
+                freeze_authority: None.into(),
+                decimals: 2,
+            }
+            .pack(),
+        )
+        .unwrap();
 
-//         let system_rent_clock_account_info = AccountInfo::new(
-//             &rent_key,
-//             false,
-//             false,
-//             &mut lamports_for_rent,
-//             &mut data,
-//             &owner_key,
-//             true,
-//             Epoch::default(),
-//         );
+        let wallet_key = &Pubkey::new_unique();
+        let wallet_bal = &mut Rent::default().minimum_balance(mem::size_of::<Account>());
+        let wallet_data = &mut vec![0; Account::LEN];
 
-//         let owner_account_info = AccountInfo::new(
-//             &owner_key,
-//             true,  // is_signer
-//             false, // is_writable
-//             &mut lamports_for_owner,
-//             &mut [], // data
-//             &program_id,
-//             false, // executable
-//             Epoch::default(),
-//         );
+        let wallet = AccountInfo::new(
+            wallet_key,
+            false,
+            true,
+            wallet_bal,
+            wallet_data,
+            spl_id,
+            false,
+            Epoch::default(),
+        );
 
-//         let vesting_account_info = AccountInfo::new(
-//             &vesting_account_key,
-//             false, // is_signer
-//             true,  // is_writable
-//             &mut lamports_for_vesting,
-//             &mut vesting_account.data,
-//             &program_id,
-//             false, // executable
-//             Epoch::default(),
-//         );
+        let receiver_key = &Pubkey::new_unique();
+        let receiver_bal = &mut Rent::default().minimum_balance(mem::size_of::<Account>());
+        let receiver_data = &mut vec![0; Account::LEN];
 
-//         state.serialize(&mut state_account.data).unwrap();
-//         let state_date_len = state_account.data.len();
-//         let state_account_info = AccountInfo::new(
-//             &state_key,
-//             false, // is_signer
-//             true,  // is_writable
-//             &mut lamports_for_state,
-//             &mut state_account.data,
-//             &program_id,
-//             false, // executable
-//             Epoch::default(),
-//         );
+        let receiver = AccountInfo::new(
+            receiver_key,
+            false,
+            true,
+            receiver_bal,
+            receiver_data,
+            spl_id,
+            false,
+            Epoch::default(),
+        );
 
-//         assert_eq!(state_date_len, std::mem::size_of::<State>());
+        spl_token::processor::Processor::process(
+            spl_id,
+            &[wallet.clone(), mint.clone(), rent.clone()],
+            &TokenInstruction::InitializeAccount2 { owner: vester_key }.pack(),
+        )
+        .unwrap();
 
-//         let accounts = vec![
-//             state_account_info.clone(),
-//             vesting_account_info.clone(),
-//             owner_account_info.clone(),
-//         ];
+        spl_token::processor::Processor::process(
+            spl_id,
+            &[receiver.clone(), mint.clone(), rent.clone()],
+            &TokenInstruction::InitializeAccount2 { owner: claimer_key }.pack(),
+        )
+        .unwrap();
 
-//         let amount = 1000;
-//         let start_date = 1234567890;
-//         let cliff = 3600; // 1 hour
-//         let duration = 86400; // 1 day
+        {
+            let mut data = Account::unpack_from_slice(&wallet.try_borrow_data().unwrap()).unwrap();
+            data.amount = 1000000000000;
+            data.pack_into_slice(*wallet.try_borrow_mut_data().unwrap());
+        }
 
-//         // Prepare instruction data for create_vesting_schedule
-//         let instruction_data = VestingInstruction::CreateVestingSchedule {
-//             user: user_key,
-//             amount,
-//             start_date,
-//             cliff,
-//             duration,
-//         }
-//         .try_to_vec()
-//         .unwrap();
+        let nonce = 1u64;
 
-//         // Simulate the process_instruction call
-//         process_instruction(&program_id, &accounts, &instruction_data).unwrap();
+        let (vesting_key, _) = Pubkey::find_program_address(
+            &[
+                "VESTING".as_bytes(),
+                &mint.key.to_bytes(),
+                &claimer.key.to_bytes(),
+                &nonce.to_le_bytes(),
+            ],
+            &program_id,
+        );
+        let vesting_bal = &mut Rent::default().minimum_balance(mem::size_of::<Vesting>());
+        let vesting_data = &mut vec![0; mem::size_of::<Vesting>()];
 
-//         let vesting_data = Vesting::try_from_slice(&vesting_account.data).unwrap();
-//         assert_eq!(vesting_data.amount, amount);
-//         assert_eq!(vesting_data.start_date, start_date);
-//         assert_eq!(vesting_data.cliff, cliff);
-//         assert_eq!(vesting_data.duration, duration);
-//     }
-// }
+        let vesting = AccountInfo::new(
+            &vesting_key,
+            false,
+            true,
+            vesting_bal,
+            vesting_data,
+            program_id,
+            false,
+            Epoch::default(),
+        );
+
+        let (vault_key, _) = Pubkey::find_program_address(
+            &[
+                "VAULT".as_bytes(),
+                &mint.key.to_bytes(),
+                &claimer.key.to_bytes(),
+                &nonce.to_le_bytes(),
+            ],
+            &program_id,
+        );
+        let vault_bal = &mut Rent::default().minimum_balance(mem::size_of::<Account>());
+        let vault_data = &mut vec![0; mem::size_of::<Account>()];
+
+        let vault = AccountInfo::new(
+            &vault_key,
+            false,
+            true,
+            vault_bal,
+            vault_data,
+            spl_id,
+            false,
+            Epoch::default(),
+        );
+
+        let binding = [
+            vester.clone(),
+            mint.clone(),
+            wallet.clone(),
+            vesting.clone(),
+            vault.clone(),
+        ];
+        process(
+            program_id,
+            &binding,
+            &VestingInstruction::CreateVesting {
+                user: claimer_key,
+                nonce: 1,
+                amount: 15000,
+                start: (Clock::default().unix_timestamp - 100) as u64,
+                cliff: 0,
+                duration: 150,
+            }
+            .try_to_vec()
+            .unwrap(),
+        )
+        .unwrap();
+
+        process(
+            program_id,
+            &[
+                claimer.clone(),
+                mint.clone(),
+                receiver.clone(),
+                vesting.clone(),
+                vault.clone(),
+            ],
+            &VestingInstruction::Claim {
+                user: claimer_key,
+                nonce: 1,
+            }
+            .try_to_vec()
+            .unwrap(),
+        )
+        .unwrap();
+    }
+}

@@ -5,7 +5,6 @@ use solana_program::{
     entrypoint::ProgramResult,
     program_error::ProgramError,
     pubkey::Pubkey,
-    sysvar::Sysvar,
 };
 use std::{convert::TryInto, slice::Iter};
 
@@ -94,7 +93,7 @@ pub fn process<'a>(
 
             // Vault PDA, checking seeds compilance, shouldn't be initialized
             let vault: &AccountInfo = next_account_info(accounts_iter)?;
-            Vault::check_info(vesting, program_id, mint.key, user, nonce)?;
+            Vault::check_info(vault, program_id, mint.key, user, nonce)?;
 
             let accounts = &Accounts {
                 signer,
@@ -111,13 +110,20 @@ pub fn process<'a>(
         }
 
         VestingInstruction::Claim { user, nonce } => {
+            // Validate signer is correct claimer
+            if *signer.key != user {
+                return Err(ProgramError::Custom(
+                    CustomError::UnauthorizedClaimer.into(),
+                ));
+            }
+
             // Vesting PDA, checking seeds compilance, should be initialized
             let vesting: &AccountInfo = next_account_info(accounts_iter)?;
             Vesting::check_info(vesting, program_id, mint.key, user, nonce)?;
 
             // Vault PDA, checking seeds compilance, should be initialized
             let vault: &AccountInfo = next_account_info(accounts_iter)?;
-            Vault::check_info(vesting, program_id, mint.key, user, nonce)?;
+            Vault::check_info(vault, program_id, mint.key, user, nonce)?;
 
             let accounts = &Accounts {
                 signer,
@@ -199,8 +205,13 @@ pub fn claim<'a>(
     // Get vesting data
     let mut vesting_data = Vesting::get_data(accounts.vesting)?;
 
-    // Get unlocked funds amount
+    // Hack to make tests work
+    #[cfg(target_os = "solana")]
     let clock = &Clock::get()?;
+    #[cfg(not(target_os = "solana"))]
+    let clock = &Clock::default();
+
+    // Get unlocked funds amount
     let total = calculate_amount(
         vesting_data.start,
         vesting_data.cliff,

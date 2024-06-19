@@ -166,7 +166,7 @@ impl Vesting {
 
     /// Get Vesting PDA data
     pub fn get_data(info: &AccountInfo) -> Result<Vesting, ProgramError> {
-        let data = Vesting::try_from_slice(&info.try_borrow_data()?)
+        let data = Vesting::try_from_slice(&info.data.borrow())
             .map_err(|x| ProgramError::BorshIoError(x.to_string()))?;
 
         Ok(data)
@@ -174,7 +174,7 @@ impl Vesting {
 
     /// Set Vesting PDA data
     pub fn set_data(self, info: &AccountInfo) -> Result<(), ProgramError> {
-        self.serialize(&mut *info.try_borrow_mut_data()?)
+        self.serialize(&mut &mut info.data.borrow_mut()[..])
             .map_err(|x| ProgramError::BorshIoError(x.to_string()))?;
 
         Ok(())
