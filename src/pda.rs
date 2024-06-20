@@ -100,7 +100,7 @@ impl Vault {
 }
 
 /// Vesting PDA type
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone)]
 pub struct Vesting {
     pub amount: u64,
     pub claimed: u64,
@@ -178,5 +178,121 @@ impl Vesting {
             .map_err(|x| ProgramError::BorshIoError(x.to_string()))?;
 
         Ok(())
+    }
+}
+
+/// Sanity tests
+#[cfg(test)]
+mod test {
+    use std::mem;
+
+    use crate::pda::Vesting;
+
+    use solana_sdk::{account_info::AccountInfo, clock::Epoch, pubkey::Pubkey};
+
+    use super::Vault;
+
+    #[test]
+    fn test_check_info() {
+        let program_id = &Pubkey::new_unique();
+        let nonce = 10u64;
+
+        let mint = Pubkey::new_unique();
+        let user = Pubkey::new_unique();
+
+        let (vesting_key, _) = Pubkey::find_program_address(
+            &[
+                "VESTING".as_bytes(),
+                &mint.to_bytes(),
+                &user.to_bytes(),
+                &nonce.to_le_bytes(),
+            ],
+            program_id,
+        );
+        let vesting_bal = &mut 100;
+        let vesting_data = &mut [0; 100];
+        let vesting = AccountInfo::new(
+            &vesting_key,
+            false,
+            true,
+            vesting_bal,
+            vesting_data,
+            program_id,
+            false,
+            Epoch::default(),
+        );
+
+        let (vault_key, _) = Pubkey::find_program_address(
+            &[
+                "VAULT".as_bytes(),
+                &mint.to_bytes(),
+                &user.to_bytes(),
+                &nonce.to_le_bytes(),
+            ],
+            program_id,
+        );
+        let vault_bal = &mut 100;
+        let vault_data = &mut [0; 100];
+        let vault = AccountInfo::new(
+            &vault_key,
+            false,
+            true,
+            vault_bal,
+            vault_data,
+            program_id,
+            false,
+            Epoch::default(),
+        );
+
+        Vesting::check_info(&vesting, program_id, &mint, user, nonce).unwrap();
+        Vault::check_info(&vesting, program_id, &mint, user, nonce).unwrap_err();
+        Vesting::check_info(&vault, program_id, &mint, user, nonce).unwrap_err();
+        Vault::check_info(&vault, program_id, &mint, user, nonce).unwrap();
+    }
+
+    #[test]
+    fn test_set_get() {
+        let program_id = &Pubkey::new_unique();
+
+        let vesting_key = Pubkey::new_unique();
+        let vesting_bal = &mut 100;
+        let vesting_data = &mut [0; mem::size_of::<Vesting>()];
+        let vesting = AccountInfo::new(
+            &vesting_key,
+            false,
+            true,
+            vesting_bal,
+            vesting_data,
+            program_id,
+            false,
+            Epoch::default(),
+        );
+
+        let data = Vesting {
+            amount: 100,
+            claimed: 10,
+            cliff: 20,
+            duration: 50,
+            start: 0,
+        };
+        data.clone().set_data(&vesting).unwrap();
+        assert!(Vesting::get_data(&vesting).unwrap() == data);
+
+        let bad_vesting_key = Pubkey::new_unique();
+        let bad_vesting_bal = &mut 100;
+        let bad_vesting_data = &mut [0; mem::size_of::<Vesting>() - 10];
+        let bad_vesting = AccountInfo::new(
+            &bad_vesting_key,
+            false,
+            true,
+            bad_vesting_bal,
+            bad_vesting_data,
+            program_id,
+            false,
+            Epoch::default(),
+        );
+
+        data.clone().set_data(&bad_vesting).unwrap_err();
+        Vesting::get_data(&bad_vesting).unwrap_err();
     }
 }

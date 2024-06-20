@@ -220,7 +220,7 @@ pub fn claim(program_id: &Pubkey, accounts: &Accounts, user: Pubkey, nonce: u64)
         vesting_data.amount,
         // Causing panic for negative time
         clock.unix_timestamp.try_into().unwrap(),
-    )?;
+    );
 
     // Update vesting data
     let distributed = total - vesting_data.claimed;
@@ -242,15 +242,9 @@ pub fn claim(program_id: &Pubkey, accounts: &Accounts, user: Pubkey, nonce: u64)
 }
 
 /// Get amount unlocked at `now` moment
-fn calculate_amount(
-    start: u64,
-    cliff: u64,
-    duration: u64,
-    vesting_amount: u64,
-    now: u64,
-) -> Result<u64, ProgramError> {
+fn calculate_amount(start: u64, cliff: u64, duration: u64, vesting_amount: u64, now: u64) -> u64 {
     if start + cliff > now {
-        return Ok(0);
+        return 0;
     }
 
     let passed = if now - start > duration {
@@ -260,7 +254,21 @@ fn calculate_amount(
     };
 
     // Due to `u64 * u64 = u128` and `passed / duration <= 1` we have no overflow and best precision
-    let calculated_amount = (vesting_amount as u128 * passed as u128 / duration as u128) as u64;
+    (vesting_amount as u128 * passed as u128 / duration as u128) as u64
+}
 
-    Ok(calculated_amount)
+/// Sanity tests
+#[cfg(test)]
+mod test {
+    use super::calculate_amount;
+
+    #[test]
+    fn test_calculate_amount() {
+        assert!(calculate_amount(1000, 20, 100, 1000, 1000) == 0);
+        assert!(calculate_amount(1000, 20, 100, 1000, 1010) == 0);
+        assert!(calculate_amount(1000, 20, 100, 1000, 1020) == 200);
+        assert!(calculate_amount(1000, 20, 100, 1000, 1090) == 900);
+        assert!(calculate_amount(1000, 20, 100, 1000, 1100) == 1000);
+        assert!(calculate_amount(1000, 20, 100, 1000, 1200) == 1000);
+    }
 }

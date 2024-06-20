@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 use solana_program::{
     account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, pubkey::Pubkey,
 };
@@ -21,8 +23,9 @@ pub fn process_instruction<'a>(
 /// Sanity tests
 #[cfg(test)]
 mod test {
-    use crate::pda::*;
-    use crate::processor::*;
+    use super::process_instruction;
+    use crate::pda::Vesting;
+    use crate::processor::VestingInstruction;
 
     use borsh::{BorshDeserialize, BorshSerialize};
     use solana_program::clock::Epoch;
@@ -37,7 +40,7 @@ mod test {
     use std::mem;
 
     #[test]
-    fn sample_workflow() {
+    fn test_sample_workflow() {
         // The test is not accurate as internal calls to spl-token are not performed
 
         let no_account = Pubkey::default();
@@ -103,8 +106,8 @@ mod test {
 
         // Create token mint account
         let mint_key = &Pubkey::new_unique();
-        let mint_bal = &mut Rent::default().minimum_balance(mem::size_of::<Mint>());
-        let mint_data = &mut vec![0; Mint::LEN];
+        let mint_bal = &mut Rent::default().minimum_balance(Mint::LEN);
+        let mint_data = &mut [0; Mint::LEN];
         let mint = AccountInfo::new(
             mint_key,
             false,
@@ -130,7 +133,7 @@ mod test {
         // Create token wallet account
         let wallet_key = &Pubkey::new_unique();
         let wallet_bal = &mut Rent::default().minimum_balance(mem::size_of::<Account>());
-        let wallet_data = &mut vec![0; Account::LEN];
+        let wallet_data = &mut [0; Account::LEN];
         let wallet = AccountInfo::new(
             wallet_key,
             false,
@@ -156,7 +159,7 @@ mod test {
         // Create token wallet account
         let receiver_key = &Pubkey::new_unique();
         let receiver_bal = &mut Rent::default().minimum_balance(mem::size_of::<Account>());
-        let receiver_data = &mut vec![0; Account::LEN];
+        let receiver_data = &mut [0; Account::LEN];
         let receiver = AccountInfo::new(
             receiver_key,
             false,
@@ -184,10 +187,10 @@ mod test {
                 &claimer.key.to_bytes(),
                 &nonce.to_le_bytes(),
             ],
-            &program_id,
+            program_id,
         );
         let vesting_bal = &mut Rent::default().minimum_balance(mem::size_of::<Vesting>());
-        let vesting_data = &mut vec![0; mem::size_of::<Vesting>()];
+        let vesting_data = &mut [0; mem::size_of::<Vesting>()];
         let vesting = AccountInfo::new(
             &vesting_key,
             false,
@@ -207,10 +210,10 @@ mod test {
                 &claimer.key.to_bytes(),
                 &nonce.to_le_bytes(),
             ],
-            &program_id,
+            program_id,
         );
         let vault_bal = &mut Rent::default().minimum_balance(mem::size_of::<Account>());
-        let vault_data = &mut vec![0; mem::size_of::<Account>()];
+        let vault_data = &mut [0; mem::size_of::<Account>()];
         let vault = AccountInfo::new(
             &vault_key,
             false,
@@ -230,7 +233,7 @@ mod test {
             vesting.clone(),
             vault.clone(),
         ];
-        process(
+        process_instruction(
             program_id,
             &binding,
             &VestingInstruction::CreateVesting {
@@ -259,7 +262,7 @@ mod test {
             vesting.clone(),
             vault.clone(),
         ];
-        process(
+        process_instruction(
             program_id,
             &binding,
             &VestingInstruction::Claim {

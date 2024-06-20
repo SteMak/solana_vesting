@@ -12,3 +12,16 @@ impl From<CustomError> for u32 {
         error as u32
     }
 }
+
+/// Sanity tests
+#[cfg(test)]
+mod test {
+    use super::CustomError;
+
+    use solana_sdk::program_error::ProgramError;
+
+    #[test]
+    fn test_convert_error() {
+        assert!(ProgramError::from(101) == ProgramError::Custom(CustomError::InvalidPDAKey.into()));
+    }
+}
