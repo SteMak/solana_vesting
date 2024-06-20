@@ -26,22 +26,25 @@ mod test {
 
     use borsh::{BorshDeserialize, BorshSerialize};
     use solana_program::clock::Epoch;
-    use solana_sdk::clock::Clock;
-    use solana_sdk::program_pack::Pack;
-    use solana_sdk::signature::Keypair;
-    use solana_sdk::signer::Signer;
-    use solana_sdk::{account_info::AccountInfo, pubkey::Pubkey, rent::Rent, sysvar::rent};
-    use spl_token::instruction::TokenInstruction;
-    use spl_token::state::Account;
-    use spl_token::state::Mint;
+    use solana_sdk::{
+        account_info::AccountInfo, clock::Clock, program_pack::Pack, pubkey::Pubkey, rent::Rent,
+        signature::Keypair, signer::Signer, sysvar::rent,
+    };
+    use spl_token::{
+        instruction::TokenInstruction,
+        state::{Account, Mint},
+    };
     use std::mem;
 
     #[test]
-    fn create_token() {
+    fn sample_workflow() {
+        // The test is not accurate as internal calls to spl-token are not performed
+
         let no_account = Pubkey::default();
         let spl_id = &spl_token::id();
         let program_id = &Pubkey::new_unique();
 
+        // Create user account
         let vester_keypair = Keypair::new();
         let vester_key = vester_keypair.pubkey();
         let vester_bal = &mut 100000000000000;
@@ -56,6 +59,7 @@ mod test {
             Epoch::default(),
         );
 
+        // Create user account
         let claimer_keypair = Keypair::new();
         let claimer_key = claimer_keypair.pubkey();
         let claimer_bal = &mut 100000000000000;
@@ -70,15 +74,14 @@ mod test {
             Epoch::default(),
         );
 
+        // Create rent account
         let rent_key = rent::id();
-
         #[derive(BorshSerialize, BorshDeserialize)]
         struct MockRent {
             lamports_per_byte_year: u64,
             exemption_threshold: f64,
             burn_percent: u8,
         }
-
         let rent_data = &mut MockRent {
             lamports_per_byte_year: Rent::default().lamports_per_byte_year,
             exemption_threshold: Rent::default().exemption_threshold,
@@ -87,7 +90,6 @@ mod test {
         .try_to_vec()
         .unwrap();
         let rent_bal = &mut Rent::default().minimum_balance(mem::size_of::<MockRent>());
-
         let rent = AccountInfo::new(
             &rent_key,
             false,
@@ -99,10 +101,10 @@ mod test {
             Epoch::default(),
         );
 
+        // Create token mint account
         let mint_key = &Pubkey::new_unique();
         let mint_bal = &mut Rent::default().minimum_balance(mem::size_of::<Mint>());
         let mint_data = &mut vec![0; Mint::LEN];
-
         let mint = AccountInfo::new(
             mint_key,
             false,
@@ -113,7 +115,6 @@ mod test {
             false,
             Epoch::default(),
         );
-
         spl_token::processor::Processor::process(
             spl_id,
             &[mint.clone(), rent.clone()],
@@ -126,10 +127,10 @@ mod test {
         )
         .unwrap();
 
+        // Create token wallet account
         let wallet_key = &Pubkey::new_unique();
         let wallet_bal = &mut Rent::default().minimum_balance(mem::size_of::<Account>());
         let wallet_data = &mut vec![0; Account::LEN];
-
         let wallet = AccountInfo::new(
             wallet_key,
             false,
@@ -140,11 +141,22 @@ mod test {
             false,
             Epoch::default(),
         );
+        spl_token::processor::Processor::process(
+            spl_id,
+            &[wallet.clone(), mint.clone(), rent.clone()],
+            &TokenInstruction::InitializeAccount2 { owner: vester_key }.pack(),
+        )
+        .unwrap();
+        {
+            let mut data = Account::unpack_from_slice(&wallet.try_borrow_data().unwrap()).unwrap();
+            data.amount = 1000000000000;
+            data.pack_into_slice(*wallet.try_borrow_mut_data().unwrap());
+        }
 
+        // Create token wallet account
         let receiver_key = &Pubkey::new_unique();
         let receiver_bal = &mut Rent::default().minimum_balance(mem::size_of::<Account>());
         let receiver_data = &mut vec![0; Account::LEN];
-
         let receiver = AccountInfo::new(
             receiver_key,
             false,
@@ -155,14 +167,6 @@ mod test {
             false,
             Epoch::default(),
         );
-
-        spl_token::processor::Processor::process(
-            spl_id,
-            &[wallet.clone(), mint.clone(), rent.clone()],
-            &TokenInstruction::InitializeAccount2 { owner: vester_key }.pack(),
-        )
-        .unwrap();
-
         spl_token::processor::Processor::process(
             spl_id,
             &[receiver.clone(), mint.clone(), rent.clone()],
@@ -170,14 +174,9 @@ mod test {
         )
         .unwrap();
 
-        {
-            let mut data = Account::unpack_from_slice(&wallet.try_borrow_data().unwrap()).unwrap();
-            data.amount = 1000000000000;
-            data.pack_into_slice(*wallet.try_borrow_mut_data().unwrap());
-        }
-
         let nonce = 1u64;
 
+        // Create vesting pda account
         let (vesting_key, _) = Pubkey::find_program_address(
             &[
                 "VESTING".as_bytes(),
@@ -189,7 +188,6 @@ mod test {
         );
         let vesting_bal = &mut Rent::default().minimum_balance(mem::size_of::<Vesting>());
         let vesting_data = &mut vec![0; mem::size_of::<Vesting>()];
-
         let vesting = AccountInfo::new(
             &vesting_key,
             false,
@@ -201,6 +199,7 @@ mod test {
             Epoch::default(),
         );
 
+        // Create vault pda account
         let (vault_key, _) = Pubkey::find_program_address(
             &[
                 "VAULT".as_bytes(),
@@ -212,7 +211,6 @@ mod test {
         );
         let vault_bal = &mut Rent::default().minimum_balance(mem::size_of::<Account>());
         let vault_data = &mut vec![0; mem::size_of::<Account>()];
-
         let vault = AccountInfo::new(
             &vault_key,
             false,
@@ -224,6 +222,7 @@ mod test {
             Epoch::default(),
         );
 
+        // Create Vesting
         let binding = [
             vester.clone(),
             mint.clone(),
@@ -238,7 +237,12 @@ mod test {
                 user: claimer_key,
                 nonce: 1,
                 amount: 15000,
-                start: (Clock::default().unix_timestamp - 100) as u64,
+                start: (Clock {
+                    unix_timestamp: 60 * 60 * 24 * 365,
+                    ..Clock::default()
+                }
+                .unix_timestamp
+                    - 100) as u64,
                 cliff: 0,
                 duration: 150,
             }
@@ -247,15 +251,17 @@ mod test {
         )
         .unwrap();
 
+        // Claim Vesting
+        let binding = [
+            claimer.clone(),
+            mint.clone(),
+            receiver.clone(),
+            vesting.clone(),
+            vault.clone(),
+        ];
         process(
             program_id,
-            &[
-                claimer.clone(),
-                mint.clone(),
-                receiver.clone(),
-                vesting.clone(),
-                vault.clone(),
-            ],
+            &binding,
             &VestingInstruction::Claim {
                 user: claimer_key,
                 nonce: 1,
@@ -264,5 +270,10 @@ mod test {
             .unwrap(),
         )
         .unwrap();
+
+        // Check Vesting account state change
+        assert!(Vesting::get_data(&vesting).unwrap().claimed == 10000);
+
+        // In the test `sol_invoke_signed()`` is not available, so we can't check result balances
     }
 }

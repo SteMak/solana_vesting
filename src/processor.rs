@@ -8,6 +8,9 @@ use solana_program::{
 };
 use std::{convert::TryInto, slice::Iter};
 
+#[cfg(target_os = "solana")]
+use solana_program::sysvar::Sysvar;
+
 use crate::{
     error::CustomError,
     pda::{Vault, Vesting},
@@ -110,7 +113,7 @@ pub fn process<'a>(
         }
 
         VestingInstruction::Claim { user, nonce } => {
-            // Validate signer is correct claimer
+            // Validate signer is vesting owner
             if *signer.key != user {
                 return Err(ProgramError::Custom(
                     CustomError::UnauthorizedClaimer.into(),
@@ -202,9 +205,12 @@ pub fn claim(program_id: &Pubkey, accounts: &Accounts, user: Pubkey, nonce: u64)
 
     // Hack to make tests work
     #[cfg(target_os = "solana")]
-    let clock = &Clock::get()?;
+    let clock = Clock::get()?;
     #[cfg(not(target_os = "solana"))]
-    let clock = &Clock::default();
+    let clock = Clock {
+        unix_timestamp: 60 * 60 * 24 * 365,
+        ..Clock::default()
+    };
 
     // Get unlocked funds amount
     let total = calculate_amount(

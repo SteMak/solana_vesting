@@ -7,6 +7,9 @@ use solana_program::{
     system_instruction,
 };
 
+#[cfg(target_os = "solana")]
+use solana_program::sysvar::Sysvar;
+
 use crate::error::CustomError;
 
 /// Sized accounts interface
@@ -22,16 +25,15 @@ pub fn create_pda<'a, T: PDA>(
     payer: &AccountInfo<'a>,
     owner: &Pubkey,
 ) -> Result<(), ProgramError> {
-    // `CreateAccount` instruction requires `payer` and `pda` to be writable signers
+    // `CreateAccount` instruction requires `payer` to be writable signer
     assert!(payer.is_signer);
     assert!(payer.is_writable);
+    // `CreateAccount` instruction requires `pda` to be writable and signer (invoke_signed)
     assert!(pda.is_writable);
 
     // Get `bump` seed and check `pda` corresponds seeds
     let (calculated_key, bump) = Pubkey::find_program_address(pda_seeds, program_id);
     assert!(*pda.key == calculated_key);
-
-    // Get balance for rent exemption
 
     // Hack to make tests work
     #[cfg(target_os = "solana")]
@@ -39,6 +41,7 @@ pub fn create_pda<'a, T: PDA>(
     #[cfg(not(target_os = "solana"))]
     let rent = Rent::default();
 
+    // Get balance for rent exemption
     let space = T::size();
     let lamports = rent.minimum_balance(space);
 
@@ -58,7 +61,7 @@ pub fn check_expected_address(
     program_id: &Pubkey,
     pda_seeds: &[&[u8]],
 ) -> Result<(), ProgramError> {
-    // Get PDA лун from seeds and compare
+    // Get PDA from seeds and compare
     let (calculated_key, _) = Pubkey::find_program_address(pda_seeds, program_id);
     if *pda.key != calculated_key {
         return Err(ProgramError::Custom(CustomError::InvalidPDAKey.into()));
@@ -96,11 +99,12 @@ pub fn init_token_pda<'a>(
 pub fn transfer_to_pda<'a>(
     pda: &AccountInfo<'a>,
     wallet: &AccountInfo<'a>,
-    signer: &AccountInfo<'a>,
+    authority: &AccountInfo<'a>,
     amount: u64,
 ) -> Result<(), ProgramError> {
-    // `Transfer` instruction requires `signer` to be signer, `wallet` and `pda` to be writable
-    assert!(signer.is_signer);
+    // `Transfer` instruction requires `authority` to be signer
+    assert!(authority.is_signer);
+    // `Transfer` instruction requires `wallet` and `pda` to be writable
     assert!(wallet.is_writable);
     assert!(pda.is_writable);
 
@@ -118,7 +122,7 @@ pub fn transfer_to_pda<'a>(
             &[pda.key],
             amount,
         )?,
-        &[wallet.clone(), pda.clone(), signer.clone()],
+        &[wallet.clone(), pda.clone(), authority.clone()],
     )?;
 
     Ok(())
@@ -132,9 +136,10 @@ pub fn transfer_from_pda<'a>(
     wallet: &AccountInfo<'a>,
     amount: u64,
 ) -> Result<(), ProgramError> {
-    // `Transfer` instruction requires `wallet` and `pda` to be writable
-    assert!(wallet.is_writable);
+    // `Transfer` instruction requires `pda` to be writable and signer (invoke_signed)
     assert!(pda.is_writable);
+    // `Transfer` instruction requires `wallet` to be writable
+    assert!(wallet.is_writable);
 
     // Sanity token account ownership checks
     assert!(*pda.owner == spl_token::id());
