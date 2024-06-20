@@ -6,7 +6,7 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
 };
-use std::{convert::TryInto, slice::Iter};
+use std::convert::TryInto;
 
 #[cfg(target_os = "solana")]
 use solana_program::sysvar::Sysvar;
@@ -37,19 +37,19 @@ pub enum VestingInstruction {
 }
 
 /// Structured accounts infos
-pub struct Accounts<'a> {
-    pub signer: &'a AccountInfo<'a>,
-    pub mint: &'a AccountInfo<'a>,
+pub struct Accounts<'a, 'b> {
+    pub signer: &'a AccountInfo<'b>,
+    pub mint: &'a AccountInfo<'b>,
 
-    pub vesting: &'a AccountInfo<'a>,
-    pub vault: &'a AccountInfo<'a>,
-    pub wallet: &'a AccountInfo<'a>,
+    pub vesting: &'a AccountInfo<'b>,
+    pub vault: &'a AccountInfo<'b>,
+    pub wallet: &'a AccountInfo<'b>,
 }
 
 /// Instructions processor
-pub fn process<'a>(
+pub fn process(
     program_id: &Pubkey,
-    accounts: &'a [AccountInfo<'a>],
+    accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
     // Decode instruction data
@@ -57,7 +57,7 @@ pub fn process<'a>(
         .map_err(|x| ProgramError::BorshIoError(x.to_string()))?;
 
     // Transform account list to iterable object
-    let accounts_iter: &mut Iter<'a, AccountInfo<'a>> = &mut accounts.iter();
+    let accounts_iter = &mut accounts.iter();
 
     // Signer is always needed, validating it
     let signer = next_account_info(accounts_iter)?;
@@ -66,7 +66,7 @@ pub fn process<'a>(
     }
 
     // Mint is token identifier, we can't fully validate it
-    let mint: &AccountInfo<'a> = next_account_info(accounts_iter)?;
+    let mint = next_account_info(accounts_iter)?;
     if *mint.owner != spl_token::id() {
         return Err(ProgramError::Custom(
             CustomError::NotOwnedByTokenProgram.into(),
@@ -74,7 +74,7 @@ pub fn process<'a>(
     }
 
     // Someone's wallet, we can't fully validate it
-    let wallet: &AccountInfo = next_account_info(accounts_iter)?;
+    let wallet = next_account_info(accounts_iter)?;
     if *wallet.owner != spl_token::id() {
         return Err(ProgramError::Custom(
             CustomError::NotOwnedByTokenProgram.into(),
@@ -91,11 +91,11 @@ pub fn process<'a>(
             duration,
         } => {
             // Vesting PDA, checking seeds compilance, shouldn't be initialized
-            let vesting: &AccountInfo = next_account_info(accounts_iter)?;
+            let vesting = next_account_info(accounts_iter)?;
             Vesting::check_info(vesting, program_id, mint.key, user, nonce)?;
 
             // Vault PDA, checking seeds compilance, shouldn't be initialized
-            let vault: &AccountInfo = next_account_info(accounts_iter)?;
+            let vault = next_account_info(accounts_iter)?;
             Vault::check_info(vault, program_id, mint.key, user, nonce)?;
 
             let accounts = &Accounts {
@@ -121,11 +121,11 @@ pub fn process<'a>(
             }
 
             // Vesting PDA, checking seeds compilance, should be initialized
-            let vesting: &AccountInfo = next_account_info(accounts_iter)?;
+            let vesting = next_account_info(accounts_iter)?;
             Vesting::check_info(vesting, program_id, mint.key, user, nonce)?;
 
             // Vault PDA, checking seeds compilance, should be initialized
-            let vault: &AccountInfo = next_account_info(accounts_iter)?;
+            let vault = next_account_info(accounts_iter)?;
             Vault::check_info(vault, program_id, mint.key, user, nonce)?;
 
             let accounts = &Accounts {
@@ -145,7 +145,7 @@ pub fn process<'a>(
 /// Create vesting instruction logic
 pub fn create_vesting(
     program_id: &Pubkey,
-    accounts: &Accounts<'_>,
+    accounts: &Accounts,
     user: Pubkey,
     nonce: u64,
     amount: u64,

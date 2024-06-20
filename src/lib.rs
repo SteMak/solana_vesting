@@ -12,9 +12,9 @@ pub mod processor;
 entrypoint!(process_instruction);
 
 /// Program entrypoint
-pub fn process_instruction<'a>(
+pub fn process_instruction(
     program_id: &Pubkey,
-    accounts: &'a [AccountInfo<'a>],
+    accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
     processor::process(program_id, accounts, instruction_data)
