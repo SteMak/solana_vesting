@@ -1,25 +1,33 @@
-// use borsh::BorshDeserialize;
-// use helloworld::{process_instruction, GreetingAccount};
-// use solana_program_test::*;
-// use solana_sdk::{
-//     account::Account,
-//     instruction::{AccountMeta, Instruction},
-//     pubkey::Pubkey,
-//     signature::Signer,
-//     transaction::Transaction,
-// };
-// use std::mem;
+// Remove after finalization
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+#![allow(unused_mut)]
 
-// #[tokio::test]
-// async fn test_helloworld() {
-//     let program_id = Pubkey::new_unique();
-//     let greeted_pubkey = Pubkey::new_unique();
+use borsh::BorshDeserialize;
+use solana_program_test::*;
+use solana_sdk::{
+    account::Account,
+    instruction::{AccountMeta, Instruction},
+    pubkey::Pubkey,
+    signature::Signer,
+    transaction::Transaction,
+};
+use solana_vesting::{
+    pda::{Vault, Vesting},
+    process_instruction,
+};
+use std::mem;
 
-//     let mut program_test = ProgramTest::new(
-//         "helloworld", // Run the BPF version with `cargo test-bpf`
-//         program_id,
-//         processor!(process_instruction), // Run the native version with `cargo test`
-//     );
+#[tokio::test]
+async fn test_solana_vesting() {
+    let program_id = Pubkey::new_unique();
+    let greeted_pubkey = Pubkey::new_unique();
+
+    let mut program_test = ProgramTest::new(
+        "solana_vesting",
+        program_id,
+        processor!(process_instruction),
+    );
 //     program_test.add_account(
 //         greeted_pubkey,
 //         Account {
@@ -29,7 +37,7 @@
 //             ..Account::default()
 //         },
 //     );
-//     let (mut banks_client, payer, recent_blockhash) = program_test.start().await;
+    let (mut banks_client, payer, recent_blockhash) = program_test.start().await;
 
 //     // Verify account has zero greetings
 //     let greeted_account = banks_client
@@ -93,4 +101,4 @@
 //             .counter,
 //         2
 //     );
-// }
+}
