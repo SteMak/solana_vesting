@@ -4,6 +4,9 @@ pub enum CustomError {
     InvalidPDAKey = 101,
     NotOwnedByTokenProgram = 102,
     UnauthorizedClaimer = 103,
+    ZeroAmount = 104,
+    CliffOverDuration = 105,
+    StartCliffOverflow = 106,
 }
 
 impl From<CustomError> for u32 {

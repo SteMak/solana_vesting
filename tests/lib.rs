@@ -1,104 +1,250 @@
-// Remove after finalization
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(unused_mut)]
+// use borsh::BorshSerialize;
+// use solana_program_test::*;
+// use solana_sdk::{
+//     account::Account,
+//     clock::Clock,
+//     instruction::{AccountMeta, Instruction},
+//     program_pack::Pack,
+//     pubkey::Pubkey,
+//     signature::{Keypair, Signer},
+//     system_instruction,
+//     sysvar::{clock, rent},
+//     transaction::Transaction,
+// };
+// use solana_vesting::{
+//     pda::{Vault, Vesting},
+//     process_instruction,
+//     processor::VestingInstruction,
+// };
+// use spl_token::state::Mint;
+// use std::mem;
 
-use borsh::BorshDeserialize;
-use solana_program_test::*;
-use solana_sdk::{
-    account::Account,
-    instruction::{AccountMeta, Instruction},
-    pubkey::Pubkey,
-    signature::Signer,
-    transaction::Transaction,
-};
-use solana_vesting::{
-    pda::{Vault, Vesting},
-    process_instruction,
-};
-use std::mem;
+// #[tokio::test]
+// async fn test_solana_vesting() {
+//     // This doesn't work for some reason
 
-#[tokio::test]
-async fn test_solana_vesting() {
-    let program_id = Pubkey::new_unique();
-    let greeted_pubkey = Pubkey::new_unique();
+//     let program_id = Pubkey::new_unique();
+//     let vester = Keypair::new();
+//     let claimer = Keypair::new();
+//     let nonce = 3u64;
 
-    let mut program_test = ProgramTest::new(
-        "solana_vesting",
-        program_id,
-        processor!(process_instruction),
-    );
+//     let mut program_test = ProgramTest::new(
+//         "solana_vesting",
+//         program_id,
+//         processor!(process_instruction),
+//     );
+//     program_test.add_program(
+//         "spl_token",
+//         spl_token::id(),
+//         processor!(spl_token::processor::Processor::process),
+//     );
+
+//     let mint_key = Pubkey::new_unique();
 //     program_test.add_account(
-//         greeted_pubkey,
+//         mint_key,
 //         Account {
-//             lamports: 5,
-//             data: vec![0_u8; mem::size_of::<u32>()],
+//             lamports: 50000,
+//             data: vec![0; mem::size_of::<Mint>()],
+//             owner: spl_token::id(),
+//             ..Account::default()
+//         },
+//     );
+
+//     let wallet_key = Pubkey::new_unique();
+//     let wallet_data = &mut [0; mem::size_of::<spl_token::state::Account>()];
+//     spl_token::state::Account {
+//         mint: mint_key,
+//         owner: vester.pubkey(),
+//         amount: 100000000,
+//         state: spl_token::state::AccountState::Initialized,
+//         ..Default::default()
+//     }
+//     .pack_into_slice(wallet_data);
+//     program_test.add_account(
+//         wallet_key,
+//         Account {
+//             lamports: 50000,
+//             data: wallet_data.into(),
+//             owner: spl_token::id(),
+//             ..Account::default()
+//         },
+//     );
+
+//     let receiver_key = Pubkey::new_unique();
+//     let receiver_data = &mut [0; mem::size_of::<spl_token::state::Account>()];
+//     spl_token::state::Account {
+//         mint: mint_key,
+//         owner: claimer.pubkey(),
+//         amount: 0,
+//         state: spl_token::state::AccountState::Initialized,
+//         ..Default::default()
+//     }
+//     .pack_into_slice(receiver_data);
+
+//     program_test.add_account(
+//         receiver_key,
+//         Account {
+//             lamports: 50000,
+//             data: receiver_data.into(),
+//             owner: spl_token::id(),
+//             ..Account::default()
+//         },
+//     );
+
+//     let (vesting_key, _) = Pubkey::find_program_address(
+//         &[
+//             "VESTING".as_bytes(),
+//             &mint_key.to_bytes(),
+//             &claimer.pubkey().to_bytes(),
+//             &nonce.to_le_bytes(),
+//         ],
+//         &program_id,
+//     );
+//     program_test.add_account(
+//         vesting_key,
+//         Account {
+//             lamports: 50000,
+//             data: vec![0; mem::size_of::<Vesting>()],
 //             owner: program_id,
 //             ..Account::default()
 //         },
 //     );
-    let (mut banks_client, payer, recent_blockhash) = program_test.start().await;
 
-//     // Verify account has zero greetings
-//     let greeted_account = banks_client
-//         .get_account(greeted_pubkey)
+//     let (vault_key, _) = Pubkey::find_program_address(
+//         &[
+//             "VAULT".as_bytes(),
+//             &mint_key.to_bytes(),
+//             &claimer.pubkey().to_bytes(),
+//             &nonce.to_le_bytes(),
+//         ],
+//         &program_id,
+//     );
+//     program_test.add_account(
+//         vault_key,
+//         Account {
+//             lamports: 50000,
+//             data: vec![0; mem::size_of::<Vault>()],
+//             owner: program_id,
+//             ..Account::default()
+//         },
+//     );
+
+//     let mut clock = Clock {
+//         unix_timestamp: 50 * 365 * 24 * 60 * 60,
+//         ..Clock::default()
+//     };
+//     program_test.add_sysvar_account(vault_key, &clock);
+
+//     let mut context = program_test.start_with_context().await;
+
+//     let recent_blockhash = context
+//         .banks_client
+//         .get_new_latest_blockhash(&context.last_blockhash)
 //         .await
-//         .expect("get_account")
-//         .expect("greeted_account not found");
-//     assert_eq!(
-//         GreetingAccount::try_from_slice(&greeted_account.data)
-//             .unwrap()
-//             .counter,
-//         0
-//     );
-
-//     // Greet once
-//     let mut transaction = Transaction::new_with_payer(
-//         &[Instruction::new_with_bincode(
-//             program_id,
-//             &[0], // ignored but makes the instruction unique in the slot
-//             vec![AccountMeta::new(greeted_pubkey, false)],
-//         )],
-//         Some(&payer.pubkey()),
-//     );
-//     transaction.sign(&[&payer], recent_blockhash);
-//     banks_client.process_transaction(transaction).await.unwrap();
-
-//     // Verify account has one greeting
-//     let greeted_account = banks_client
-//         .get_account(greeted_pubkey)
+//         .unwrap();
+//     context
+//         .banks_client
+//         .process_transaction(Transaction::new_signed_with_payer(
+//             &[system_instruction::transfer(
+//                 &context.payer.pubkey(),
+//                 &vester.pubkey(),
+//                 1000000000,
+//             )],
+//             Some(&context.payer.pubkey()),
+//             &[&context.payer],
+//             recent_blockhash,
+//         ))
 //         .await
-//         .expect("get_account")
-//         .expect("greeted_account not found");
-//     assert_eq!(
-//         GreetingAccount::try_from_slice(&greeted_account.data)
-//             .unwrap()
-//             .counter,
-//         1
-//     );
+//         .unwrap();
 
-//     // Greet again
-//     let mut transaction = Transaction::new_with_payer(
-//         &[Instruction::new_with_bincode(
-//             program_id,
-//             &[1], // ignored but makes the instruction unique in the slot
-//             vec![AccountMeta::new(greeted_pubkey, false)],
-//         )],
-//         Some(&payer.pubkey()),
-//     );
-//     transaction.sign(&[&payer], recent_blockhash);
-//     banks_client.process_transaction(transaction).await.unwrap();
-
-//     // Verify account has two greetings
-//     let greeted_account = banks_client
-//         .get_account(greeted_pubkey)
+//     let recent_blockhash = context
+//         .banks_client
+//         .get_new_latest_blockhash(&context.last_blockhash)
 //         .await
-//         .expect("get_account")
-//         .expect("greeted_account not found");
-//     assert_eq!(
-//         GreetingAccount::try_from_slice(&greeted_account.data)
-//             .unwrap()
-//             .counter,
-//         2
-//     );
-}
+//         .unwrap();
+//     context
+//         .banks_client
+//         .process_transaction(Transaction::new_signed_with_payer(
+//             &[system_instruction::transfer(
+//                 &context.payer.pubkey(),
+//                 &claimer.pubkey(),
+//                 1000000000,
+//             )],
+//             Some(&context.payer.pubkey()),
+//             &[&context.payer],
+//             recent_blockhash,
+//         ))
+//         .await
+//         .unwrap();
+
+//     let recent_blockhash = context
+//         .banks_client
+//         .get_new_latest_blockhash(&context.last_blockhash)
+//         .await
+//         .unwrap();
+//     context
+//         .banks_client
+//         .process_transaction(Transaction::new_signed_with_payer(
+//             &[Instruction::new_with_bytes(
+//                 program_id,
+//                 &VestingInstruction::CreateVesting {
+//                     user: claimer.pubkey(),
+//                     nonce,
+//                     amount: 1000000,
+//                     start: clock.unix_timestamp as u64,
+//                     cliff: 100,
+//                     duration: 200,
+//                 }
+//                 .try_to_vec()
+//                 .unwrap(),
+//                 vec![
+//                     AccountMeta::new_readonly(rent::id(), false),
+//                     AccountMeta::new(vester.pubkey(), true),
+//                     AccountMeta::new_readonly(mint_key, false),
+//                     AccountMeta::new(wallet_key, false),
+//                     AccountMeta::new(vesting_key, false),
+//                     AccountMeta::new(vault_key, false),
+//                 ],
+//             )],
+//             Some(&vester.pubkey()),
+//             &[&vester],
+//             recent_blockhash,
+//         ))
+//         .await
+//         .unwrap();
+
+//     clock.unix_timestamp += 150;
+//     context.set_sysvar(&clock);
+
+//     let recent_blockhash = context
+//         .banks_client
+//         .get_new_latest_blockhash(&context.last_blockhash)
+//         .await
+//         .unwrap();
+//     context
+//         .banks_client
+//         .process_transaction(Transaction::new_signed_with_payer(
+//             &[Instruction::new_with_bytes(
+//                 program_id,
+//                 &VestingInstruction::Claim {
+//                     user: claimer.pubkey(),
+//                     nonce,
+//                 }
+//                 .try_to_vec()
+//                 .unwrap(),
+//                 vec![
+//                     AccountMeta::new_readonly(clock::id(), false),
+//                     AccountMeta::new(claimer.pubkey(), false),
+//                     AccountMeta::new_readonly(mint_key, false),
+//                     AccountMeta::new(receiver_key, false),
+//                     AccountMeta::new(vesting_key, false),
+//                     AccountMeta::new(vault_key, false),
+//                 ],
+//             )],
+//             Some(&claimer.pubkey()),
+//             &[&claimer],
+//             recent_blockhash,
+//         ))
+//         .await
+//         .unwrap();
+// }

@@ -211,15 +211,15 @@ pub fn create_vesting(
     duration: u64,
 ) -> ProgramResult {
     // Prevent overflow
-    if start + cliff < start {
-        return Err(ProgramError::Custom(0));
+    if start.overflowing_add(cliff).1 {
+        return Err(ProgramError::Custom(CustomError::StartCliffOverflow.into()));
     }
     // Parameters check
     if cliff > duration {
-        return Err(ProgramError::Custom(0));
+        return Err(ProgramError::Custom(CustomError::CliffOverDuration.into()));
     }
     if amount == 0 {
-        return Err(ProgramError::Custom(0));
+        return Err(ProgramError::Custom(CustomError::ZeroAmount.into()));
     }
 
     // Create Vesting PDA
@@ -319,15 +319,80 @@ fn calculate_amount(start: u64, cliff: u64, duration: u64, vesting_amount: u64, 
 /// Sanity tests
 #[cfg(test)]
 mod test {
-    use super::calculate_amount;
+    use solana_sdk::{account_info::AccountInfo, clock::Epoch, pubkey::Pubkey, rent::Rent};
+
+    use super::{calculate_amount, create_vesting, CreateVestingAccounts};
 
     #[test]
     fn test_calculate_amount() {
+        assert!(calculate_amount(1000, 20, 100, 1000, 500) == 0);
         assert!(calculate_amount(1000, 20, 100, 1000, 1000) == 0);
         assert!(calculate_amount(1000, 20, 100, 1000, 1010) == 0);
+        assert!(calculate_amount(1000, 20, 100, 1000, 1019) == 0);
         assert!(calculate_amount(1000, 20, 100, 1000, 1020) == 200);
         assert!(calculate_amount(1000, 20, 100, 1000, 1090) == 900);
+        assert!(calculate_amount(1000, 20, 100, 1000, 1099) == 990);
         assert!(calculate_amount(1000, 20, 100, 1000, 1100) == 1000);
         assert!(calculate_amount(1000, 20, 100, 1000, 1200) == 1000);
+    }
+
+    #[test]
+    fn test_create_vesting_revert() {
+        let no_account = Pubkey::default();
+        let lamports = &mut 0;
+        let dummy_account = AccountInfo::new(
+            &no_account,
+            false,
+            false,
+            lamports,
+            &mut [],
+            &no_account,
+            false,
+            Epoch::default(),
+        );
+        let vesting_accounts = CreateVestingAccounts {
+            mint: &dummy_account,
+            signer: &dummy_account,
+            vault: &dummy_account,
+            vesting: &dummy_account,
+            wallet: &dummy_account,
+            rent: &Rent::default(),
+        };
+
+        create_vesting(
+            &Pubkey::new_unique(),
+            &vesting_accounts,
+            Pubkey::new_unique(),
+            3,
+            1000,
+            1000,
+            120,
+            100,
+        )
+        .unwrap_err();
+
+        create_vesting(
+            &Pubkey::new_unique(),
+            &vesting_accounts,
+            Pubkey::new_unique(),
+            3,
+            0,
+            1000,
+            20,
+            100,
+        )
+        .unwrap_err();
+
+        create_vesting(
+            &Pubkey::new_unique(),
+            &vesting_accounts,
+            Pubkey::new_unique(),
+            3,
+            1000,
+            u64::MAX - 10,
+            20,
+            100,
+        )
+        .unwrap_err();
     }
 }
