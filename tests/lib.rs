@@ -12,9 +12,9 @@
 //     transaction::Transaction,
 // };
 // use solana_vesting::{
+//     instruction::VestingInstruction,
 //     pda::{Vault, Vesting},
 //     process_instruction,
-//     processor::VestingInstruction,
 // };
 // use spl_token::state::Mint;
 // use std::mem;
