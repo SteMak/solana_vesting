@@ -71,16 +71,12 @@ pub fn init_token_pda<'a>(
     assert!(pda.is_writable);
 
     // Sanity token account ownership check
+    assert!(*mint.owner == spl_token::id());
     assert!(*pda.owner == spl_token::id());
 
     // Invoke `InitializeAccount3`, instruction requires `mint` to be provided
     invoke(
-        &spl_token::instruction::initialize_account3(
-            &spl_token::id(),
-            pda.key,
-            mint.key,
-            &spl_token::id(),
-        )?,
+        &spl_token::instruction::initialize_account3(&spl_token::id(), pda.key, mint.key, pda.key)?,
         &[pda.clone(), mint.clone()],
     )?;
 
@@ -110,8 +106,8 @@ pub fn transfer_to_pda<'a>(
             &spl_token::id(),
             wallet.key,
             pda.key,
-            &spl_token::id(),
-            &[pda.key],
+            &authority.key,
+            &[],
             amount,
         )?,
         &[wallet.clone(), pda.clone(), authority.clone()],
@@ -147,8 +143,8 @@ pub fn transfer_from_pda<'a>(
             &spl_token::id(),
             pda.key,
             wallet.key,
-            &spl_token::id(),
-            &[pda.key],
+            &pda.key,
+            &[],
             amount,
         )?,
         &[pda.clone(), wallet.clone(), pda.clone()],
