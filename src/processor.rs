@@ -62,11 +62,13 @@ pub fn process(
                 ));
             }
 
-            // Vesting PDA, checking seeds compilance, shouldn't be initialized
+            // Vesting PDA, checking seeds compilance,
+            // shouldn't be initialized (validated by recreate attempt)
             let vesting = next_account_info(accounts_iter)?;
             Vesting::check_info(vesting, program_id, mint.key, user, nonce)?;
 
-            // Vault PDA, checking seeds compilance, shouldn't be initialized
+            // Vault PDA, checking seeds compilance,
+            // shouldn't be initialized (validated by recreate attempt)
             let vault = next_account_info(accounts_iter)?;
             Vault::check_info(vault, program_id, mint.key, user, nonce)?;
 
@@ -119,11 +121,13 @@ pub fn process(
                 ));
             }
 
-            // Vesting PDA, checking seeds compilance, should be initialized
+            // Vesting PDA, checking seeds compilance,
+            // should be initialized (empty account causes zero claim)
             let vesting = next_account_info(accounts_iter)?;
             Vesting::check_info(vesting, program_id, mint.key, user, nonce)?;
 
-            // Vault PDA, checking seeds compilance, should be initialized
+            // Vault PDA, checking seeds compilance,
+            // should be initialized (nothing can be stolen from empty account)
             let vault = next_account_info(accounts_iter)?;
             Vault::check_info(vault, program_id, mint.key, user, nonce)?;
 
@@ -250,14 +254,12 @@ fn calculate_amount(start: u64, cliff: u64, duration: u64, vesting_amount: u64, 
         return 0;
     }
 
-    let passed = if now - start > duration {
-        duration
-    } else {
-        now - start
-    };
+    if now - start >= duration {
+        return vesting_amount;
+    }
 
-    // Due to `u64 * u64 = u128` and `passed / duration <= 1` we have no overflow and best precision
-    (vesting_amount as u128 * passed as u128 / duration as u128) as u64
+    // Due to `u64 * u64 = u128` and `(now - start) / duration < 1` we have no overflow and best precision
+    (vesting_amount as u128 * (now - start) as u128 / duration as u128) as u64
 }
 
 /// Sanity tests
@@ -269,6 +271,7 @@ mod test {
 
     #[test]
     fn test_calculate_amount() {
+        assert!(calculate_amount(0, 0, 0, 0, 500) == 0);
         assert!(calculate_amount(1000, 20, 100, 1000, 500) == 0);
         assert!(calculate_amount(1000, 20, 100, 1000, 1000) == 0);
         assert!(calculate_amount(1000, 20, 100, 1000, 1010) == 0);
