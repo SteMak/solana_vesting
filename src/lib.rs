@@ -30,8 +30,14 @@ mod test {
     use borsh::{BorshDeserialize, BorshSerialize};
     use solana_program::clock::Epoch;
     use solana_sdk::{
-        account_info::AccountInfo, clock::Clock, program_pack::Pack, pubkey::Pubkey, rent::Rent,
-        signature::Keypair, signer::Signer, sysvar::rent,
+        account_info::AccountInfo,
+        clock::{Slot, UnixTimestamp},
+        program_pack::Pack,
+        pubkey::Pubkey,
+        rent::Rent,
+        signature::Keypair,
+        signer::Signer,
+        sysvar::{clock, rent},
     };
     use spl_token::{
         instruction::TokenInstruction,
@@ -85,20 +91,49 @@ mod test {
             exemption_threshold: f64,
             burn_percent: u8,
         }
-        let rent_data = &mut MockRent {
+        let rent_data = MockRent {
             lamports_per_byte_year: Rent::default().lamports_per_byte_year,
             exemption_threshold: Rent::default().exemption_threshold,
             burn_percent: Rent::default().burn_percent,
-        }
-        .try_to_vec()
-        .unwrap();
+        };
+        let rent_encoded = &mut rent_data.try_to_vec().unwrap();
         let rent_bal = &mut Rent::default().minimum_balance(mem::size_of::<MockRent>());
         let rent = AccountInfo::new(
             &rent_key,
             false,
             false,
             rent_bal,
-            rent_data,
+            rent_encoded,
+            &no_account,
+            false,
+            Epoch::default(),
+        );
+
+        // Create clock account
+        let clock_key = clock::id();
+        #[derive(BorshSerialize, BorshDeserialize)]
+        struct MockClock {
+            pub slot: Slot,
+            pub epoch_start_timestamp: UnixTimestamp,
+            pub epoch: Epoch,
+            pub leader_schedule_epoch: Epoch,
+            pub unix_timestamp: UnixTimestamp,
+        }
+        let clock_data = MockClock {
+            slot: 0,
+            epoch_start_timestamp: 15200,
+            epoch: 0,
+            leader_schedule_epoch: 1,
+            unix_timestamp: 15400,
+        };
+        let clock_encoded = &mut clock_data.try_to_vec().unwrap();
+        let clock_bal = &mut Rent::default().minimum_balance(mem::size_of::<MockClock>());
+        let clock = AccountInfo::new(
+            &clock_key,
+            false,
+            false,
+            clock_bal,
+            clock_encoded,
             &no_account,
             false,
             Epoch::default(),
@@ -227,6 +262,7 @@ mod test {
 
         // Create Vesting
         let binding = [
+            rent.clone(),
             vester.clone(),
             mint.clone(),
             wallet.clone(),
@@ -240,12 +276,7 @@ mod test {
                 user: claimer_key,
                 nonce: 1,
                 amount: 15000,
-                start: (Clock {
-                    unix_timestamp: 60 * 60 * 24 * 365,
-                    ..Clock::default()
-                }
-                .unix_timestamp
-                    - 100) as u64,
+                start: (clock_data.unix_timestamp - 100) as u64,
                 cliff: 0,
                 duration: 150,
             }
@@ -256,6 +287,7 @@ mod test {
 
         // Claim Vesting
         let binding = [
+            clock.clone(),
             claimer.clone(),
             mint.clone(),
             receiver.clone(),

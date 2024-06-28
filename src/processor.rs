@@ -1,15 +1,12 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
-    clock::Clock,
     entrypoint::ProgramResult,
     program_error::ProgramError,
     pubkey::Pubkey,
+    sysvar::{clock::Clock, rent::Rent, Sysvar},
 };
 use std::convert::TryInto;
-
-#[cfg(target_os = "solana")]
-use solana_program::sysvar::Sysvar;
 
 use crate::{
     error::CustomError,
@@ -36,14 +33,41 @@ pub enum VestingInstruction {
     },
 }
 
-/// Structured accounts infos
-pub struct Accounts<'a, 'b> {
-    pub signer: &'a AccountInfo<'b>,
-    pub mint: &'a AccountInfo<'b>,
+/// Structured CreateVesting instruction account infos
+pub struct CreateVestingAccounts<'a, 'b> {
+    // [sysvar]
+    rent: &'a Rent,
 
-    pub vesting: &'a AccountInfo<'b>,
-    pub vault: &'a AccountInfo<'b>,
-    pub wallet: &'a AccountInfo<'b>,
+    // [signer writeble]
+    signer: &'a AccountInfo<'b>,
+    // [token_mint]
+    mint: &'a AccountInfo<'b>,
+    // [writeble token_wallet]
+    wallet: &'a AccountInfo<'b>,
+
+    // [pda writeble]
+    vesting: &'a AccountInfo<'b>,
+    // [pda writeble token_wallet]
+    vault: &'a AccountInfo<'b>,
+}
+
+/// Structured Claim instruction account infos
+pub struct ClaimAccounts<'a, 'b> {
+    // [sysvar]
+    clock: &'a Clock,
+
+    #[allow(dead_code)]
+    // [signer]
+    signer: &'a AccountInfo<'b>,
+    // [token_mint]
+    mint: &'a AccountInfo<'b>,
+    // [writeble token_wallet]
+    wallet: &'a AccountInfo<'b>,
+
+    // [pda writeble]
+    vesting: &'a AccountInfo<'b>,
+    // [pda writeble token_wallet]
+    vault: &'a AccountInfo<'b>,
 }
 
 /// Instructions processor
@@ -59,28 +83,7 @@ pub fn process(
     // Transform account list to iterable object
     let accounts_iter = &mut accounts.iter();
 
-    // Signer is always needed, validating it
-    let signer = next_account_info(accounts_iter)?;
-    if !signer.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
-
-    // Mint is token identifier, we can't fully validate it
-    let mint = next_account_info(accounts_iter)?;
-    if *mint.owner != spl_token::id() {
-        return Err(ProgramError::Custom(
-            CustomError::NotOwnedByTokenProgram.into(),
-        ));
-    }
-
-    // Someone's wallet, we can't fully validate it
-    let wallet = next_account_info(accounts_iter)?;
-    if *wallet.owner != spl_token::id() {
-        return Err(ProgramError::Custom(
-            CustomError::NotOwnedByTokenProgram.into(),
-        ));
-    }
-
+    // Chose instruction to process from enum
     match instruction {
         VestingInstruction::CreateVesting {
             user,
@@ -90,6 +93,31 @@ pub fn process(
             cliff,
             duration,
         } => {
+            // Validating rent sysvar
+            let rent = &Rent::from_account_info(next_account_info(accounts_iter)?)?;
+
+            // Validating signer
+            let signer = next_account_info(accounts_iter)?;
+            if !signer.is_signer {
+                return Err(ProgramError::MissingRequiredSignature);
+            }
+
+            // Mint is token identifier, we can't fully validate it
+            let mint = next_account_info(accounts_iter)?;
+            if *mint.owner != spl_token::id() {
+                return Err(ProgramError::Custom(
+                    CustomError::NotOwnedByTokenProgram.into(),
+                ));
+            }
+
+            // Vesting creator wallet, we can't fully validate it
+            let wallet = next_account_info(accounts_iter)?;
+            if *wallet.owner != spl_token::id() {
+                return Err(ProgramError::Custom(
+                    CustomError::NotOwnedByTokenProgram.into(),
+                ));
+            }
+
             // Vesting PDA, checking seeds compilance, shouldn't be initialized
             let vesting = next_account_info(accounts_iter)?;
             Vesting::check_info(vesting, program_id, mint.key, user, nonce)?;
@@ -98,12 +126,14 @@ pub fn process(
             let vault = next_account_info(accounts_iter)?;
             Vault::check_info(vault, program_id, mint.key, user, nonce)?;
 
-            let accounts = &Accounts {
+            // Prepare accounts
+            let accounts = &CreateVestingAccounts {
+                rent,
                 signer,
                 mint,
+                wallet,
                 vesting,
                 vault,
-                wallet,
             };
 
             // Running logic
@@ -113,6 +143,31 @@ pub fn process(
         }
 
         VestingInstruction::Claim { user, nonce } => {
+            // Validating clock sysvar
+            let clock = &Clock::from_account_info(next_account_info(accounts_iter)?)?;
+
+            // Signer is always needed, validating it
+            let signer: &AccountInfo = next_account_info(accounts_iter)?;
+            if !signer.is_signer {
+                return Err(ProgramError::MissingRequiredSignature);
+            }
+
+            // Mint is token identifier, we can't fully validate it
+            let mint = next_account_info(accounts_iter)?;
+            if *mint.owner != spl_token::id() {
+                return Err(ProgramError::Custom(
+                    CustomError::NotOwnedByTokenProgram.into(),
+                ));
+            }
+
+            // Vesting receiver wallet, we can't fully validate it
+            let wallet = next_account_info(accounts_iter)?;
+            if *wallet.owner != spl_token::id() {
+                return Err(ProgramError::Custom(
+                    CustomError::NotOwnedByTokenProgram.into(),
+                ));
+            }
+
             // Validate signer is vesting owner
             if *signer.key != user {
                 return Err(ProgramError::Custom(
@@ -128,12 +183,14 @@ pub fn process(
             let vault = next_account_info(accounts_iter)?;
             Vault::check_info(vault, program_id, mint.key, user, nonce)?;
 
-            let accounts = &Accounts {
+            // Prepare accounts
+            let accounts = &ClaimAccounts {
+                clock,
                 signer,
                 mint,
+                wallet,
                 vesting,
                 vault,
-                wallet,
             };
 
             // Running logic
@@ -145,7 +202,7 @@ pub fn process(
 /// Create vesting instruction logic
 pub fn create_vesting(
     program_id: &Pubkey,
-    accounts: &Accounts,
+    accounts: &CreateVestingAccounts,
     user: Pubkey,
     nonce: u64,
     amount: u64,
@@ -153,6 +210,10 @@ pub fn create_vesting(
     cliff: u64,
     duration: u64,
 ) -> ProgramResult {
+    // Prevent overflow
+    if start + cliff < start {
+        return Err(ProgramError::Custom(0));
+    }
     // Parameters check
     if cliff > duration {
         return Err(ProgramError::Custom(0));
@@ -165,6 +226,7 @@ pub fn create_vesting(
     Vesting::create(
         accounts.vesting,
         program_id,
+        accounts.rent,
         accounts.signer,
         accounts.mint.key,
         user,
@@ -186,6 +248,7 @@ pub fn create_vesting(
     Vault::create(
         accounts.vault,
         program_id,
+        accounts.rent,
         accounts.signer,
         accounts.mint,
         user,
@@ -199,18 +262,14 @@ pub fn create_vesting(
 }
 
 /// Claim vesting instruction logic
-pub fn claim(program_id: &Pubkey, accounts: &Accounts, user: Pubkey, nonce: u64) -> ProgramResult {
+pub fn claim(
+    program_id: &Pubkey,
+    accounts: &ClaimAccounts,
+    user: Pubkey,
+    nonce: u64,
+) -> ProgramResult {
     // Get vesting data
     let mut vesting_data = Vesting::get_data(accounts.vesting)?;
-
-    // Hack to make tests work
-    #[cfg(target_os = "solana")]
-    let clock = Clock::get()?;
-    #[cfg(not(target_os = "solana"))]
-    let clock = Clock {
-        unix_timestamp: 60 * 60 * 24 * 365,
-        ..Clock::default()
-    };
 
     // Get unlocked funds amount
     let total = calculate_amount(
@@ -219,7 +278,7 @@ pub fn claim(program_id: &Pubkey, accounts: &Accounts, user: Pubkey, nonce: u64)
         vesting_data.duration,
         vesting_data.amount,
         // Causing panic for negative time
-        clock.unix_timestamp.try_into().unwrap(),
+        accounts.clock.unix_timestamp.try_into().unwrap(),
     );
 
     // Update vesting data

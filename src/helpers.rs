@@ -7,9 +7,6 @@ use solana_program::{
     system_instruction,
 };
 
-#[cfg(target_os = "solana")]
-use solana_program::sysvar::Sysvar;
-
 use crate::error::CustomError;
 
 /// Sized accounts interface
@@ -22,6 +19,7 @@ pub fn create_pda<'a, T: PDA>(
     pda: &AccountInfo<'a>,
     program_id: &Pubkey,
     pda_seeds: &[&[u8]],
+    rent: &Rent,
     payer: &AccountInfo<'a>,
     owner: &Pubkey,
 ) -> Result<(), ProgramError> {
@@ -34,12 +32,6 @@ pub fn create_pda<'a, T: PDA>(
     // Get `bump` seed and check `pda` corresponds seeds
     let (calculated_key, bump) = Pubkey::find_program_address(pda_seeds, program_id);
     assert!(*pda.key == calculated_key);
-
-    // Hack to make tests work
-    #[cfg(target_os = "solana")]
-    let rent = Rent::get()?;
-    #[cfg(not(target_os = "solana"))]
-    let rent = Rent::default();
 
     // Get balance for rent exemption
     let space = T::size();

@@ -1,5 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
+use solana_program::{
+    account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey, sysvar::rent::Rent,
+};
 use spl_token::state::Account;
 
 use crate::helpers::*;
@@ -42,6 +44,7 @@ impl Vault {
     pub fn create<'a>(
         pda: &AccountInfo<'a>,
         program_id: &Pubkey,
+        rent: &Rent,
         payer: &AccountInfo<'a>,
         mint: &AccountInfo<'a>,
         user: Pubkey,
@@ -56,6 +59,7 @@ impl Vault {
                 &user.to_bytes(),
                 &nonce.to_le_bytes(),
             ],
+            rent,
             payer,
             &spl_token::id(),
         )?;
@@ -145,6 +149,7 @@ impl Vesting {
     pub fn create<'a>(
         pda: &AccountInfo<'a>,
         program_id: &Pubkey,
+        rent: &Rent,
         payer: &AccountInfo<'a>,
         mint: &Pubkey,
         user: Pubkey,
@@ -159,6 +164,7 @@ impl Vesting {
                 &user.to_bytes(),
                 &nonce.to_le_bytes(),
             ],
+            rent,
             payer,
             program_id,
         )
