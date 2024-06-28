@@ -1,4 +1,4 @@
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -10,65 +10,9 @@ use std::convert::TryInto;
 
 use crate::{
     error::CustomError,
+    instruction::{ClaimAccounts, CreateVestingAccounts, VestingInstruction},
     pda::{Vault, Vesting},
 };
-
-/// Instruction enum definition
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
-pub enum VestingInstruction {
-    CreateVesting {
-        user: Pubkey,
-        nonce: u64,
-
-        amount: u64,
-
-        start: u64,
-        cliff: u64,
-        duration: u64,
-    },
-
-    Claim {
-        user: Pubkey,
-        nonce: u64,
-    },
-}
-
-/// Structured CreateVesting instruction account infos
-pub struct CreateVestingAccounts<'a, 'b> {
-    // [sysvar]
-    rent: &'a Rent,
-
-    // [signer writeble]
-    signer: &'a AccountInfo<'b>,
-    // [token_mint]
-    mint: &'a AccountInfo<'b>,
-    // [writeble token_wallet]
-    wallet: &'a AccountInfo<'b>,
-
-    // [pda writeble]
-    vesting: &'a AccountInfo<'b>,
-    // [pda writeble token_wallet]
-    vault: &'a AccountInfo<'b>,
-}
-
-/// Structured Claim instruction account infos
-pub struct ClaimAccounts<'a, 'b> {
-    // [sysvar]
-    clock: &'a Clock,
-
-    #[allow(dead_code)]
-    // [signer]
-    signer: &'a AccountInfo<'b>,
-    // [token_mint]
-    mint: &'a AccountInfo<'b>,
-    // [writeble token_wallet]
-    wallet: &'a AccountInfo<'b>,
-
-    // [pda writeble]
-    vesting: &'a AccountInfo<'b>,
-    // [pda writeble token_wallet]
-    vault: &'a AccountInfo<'b>,
-}
 
 /// Instructions processor
 pub fn process(

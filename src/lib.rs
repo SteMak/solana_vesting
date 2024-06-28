@@ -6,6 +6,7 @@ use solana_program::{
 
 pub mod error;
 pub mod helpers;
+pub mod instruction;
 pub mod pda;
 pub mod processor;
 
@@ -24,8 +25,8 @@ pub fn process_instruction(
 #[cfg(test)]
 mod test {
     use super::process_instruction;
+    use crate::instruction::VestingInstruction;
     use crate::pda::Vesting;
-    use crate::processor::VestingInstruction;
 
     use borsh::{BorshDeserialize, BorshSerialize};
     use solana_program::clock::Epoch;
