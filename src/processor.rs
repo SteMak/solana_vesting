@@ -156,7 +156,7 @@ pub fn create_vesting(
 
     // Set vesting data
     accounts.vesting.write(Vesting {
-        receiver: beneficiary,
+        beneficiary,
         creator: *accounts.signer.key,
         mint: *accounts.mint.key,
         seed_key: *accounts.seed.key,
@@ -175,7 +175,7 @@ pub fn create_vesting(
 /// Claim vesting instruction logic
 pub fn claim(accounts: ClaimAccounts) -> ProgramResult {
     // Get unlocked funds amount
-    let mut total = calculate_amount(
+    let total = calculate_amount(
         accounts.vesting.data.start,
         accounts.vesting.data.cliff,
         accounts.vesting.data.duration,
@@ -184,38 +184,37 @@ pub fn claim(accounts: ClaimAccounts) -> ProgramResult {
         accounts.clock.unix_timestamp.try_into().unwrap(),
     );
 
-    if accounts.vault.data.amount < total {
-        total = accounts.vault.data.amount;
+    let mut distribute = total - accounts.vesting.data.claimed;
+    if accounts.vault.data.amount < distribute {
+        distribute = accounts.vault.data.amount;
     }
 
     // Update vesting data
-    let distributed = total - accounts.vesting.data.claimed;
-
     let mut vesting = accounts.vesting.data.clone();
 
-    vesting.claimed = total;
+    vesting.claimed += distribute;
     accounts.vesting.write(vesting)?;
 
     // Withdraw distributed funds
     accounts
         .vault
-        .transfer_out(accounts.distribute.info, distributed)?;
+        .transfer_out(accounts.distribute.info, distribute)?;
 
     Ok(())
 }
 
 /// Get amount unlocked at `now` moment
-fn calculate_amount(start: u64, cliff: u64, duration: u64, vesting_amount: u64, now: u64) -> u64 {
+fn calculate_amount(start: u64, cliff: u64, duration: u64, amount: u64, now: u64) -> u64 {
     if start + cliff > now {
         return 0;
     }
 
     if now - start >= duration {
-        return vesting_amount;
+        return amount;
     }
 
     // Due to `u64 * u64 = u128` and `(now - start) / duration < 1` we have no overflow and best precision
-    (vesting_amount as u128 * (now - start) as u128 / duration as u128) as u64
+    (amount as u128 * (now - start) as u128 / duration as u128) as u64
 }
 
 // /// Sanity tests

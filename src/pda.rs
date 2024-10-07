@@ -72,8 +72,8 @@ impl<'a> PDA<'a, Vault> {
         mint: &AccountInfo<'a>,
     ) -> Result<(), ProgramError> {
         create_pda::<PDA<Vault>, Vault>(
-            self.program_id,
             self.info,
+            self.program_id,
             &[&self.seeds],
             rent,
             payer,
@@ -86,7 +86,7 @@ impl<'a> PDA<'a, Vault> {
 
     /// Transfer spl-token from Vault
     pub fn transfer_out(&self, wallet: &AccountInfo<'a>, amount: u64) -> Result<(), ProgramError> {
-        transfer_from_pda(self.program_id, self.info, &[&self.seeds], wallet, amount)
+        transfer_from_pda(self.info, self.program_id, &[&self.seeds], wallet, amount)
     }
 }
 
@@ -135,8 +135,8 @@ impl<'a> PDA<'a, Distribute> {
         authority: &Pubkey,
     ) -> Result<(), ProgramError> {
         create_pda::<PDA<Distribute>, Distribute>(
-            self.program_id,
             self.info,
+            self.program_id,
             &[&self.seeds],
             rent,
             payer,
@@ -151,7 +151,7 @@ impl<'a> PDA<'a, Distribute> {
 /// Vesting PDA type
 #[derive(BorshSerialize, BorshDeserialize, Default, Debug, PartialEq, Clone)]
 pub struct Vesting {
-    pub receiver: Pubkey,
+    pub beneficiary: Pubkey,
     pub mint: Pubkey,
     pub seed_key: Pubkey,
     pub creator: Pubkey,
@@ -203,8 +203,8 @@ impl<'a> PDA<'a, Vesting> {
     /// Create Vesting PDA
     pub fn create(&self, rent: &Rent, payer: &AccountInfo<'a>) -> Result<(), ProgramError> {
         create_pda::<PDA<Vesting>, Vesting>(
-            self.program_id,
             self.info,
+            self.program_id,
             &[&self.seeds],
             rent,
             payer,

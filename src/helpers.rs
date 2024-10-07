@@ -14,8 +14,8 @@ use crate::{
 
 /// Create PDA using given parameters
 pub fn create_pda<'a, T: PDAMethods<D>, D: PDAData>(
-    program_id: &Pubkey,
     pda: &AccountInfo<'a>,
+    program_id: &Pubkey,
     pda_seeds: &[&[u8]],
     rent: &Rent,
     payer: &AccountInfo<'a>,
@@ -47,8 +47,8 @@ pub fn create_pda<'a, T: PDAMethods<D>, D: PDAData>(
 
 /// Check PDA corresponds seeds
 pub fn check_expected_address(
-    program_id: &Pubkey,
     received_pubkey: &Pubkey,
+    program_id: &Pubkey,
     pda_seeds: &[&[u8]],
 ) -> Result<(), ProgramError> {
     // Get PDA from seeds and compare
@@ -87,7 +87,7 @@ pub fn init_token_pda<'a>(
     Ok(())
 }
 
-/// Transfer spl-token to PDA
+/// Transfer spl-token to PDA, does not support multisigs
 pub fn transfer_to_pda<'a>(
     pda: &AccountInfo<'a>,
     wallet: &AccountInfo<'a>,
@@ -122,8 +122,8 @@ pub fn transfer_to_pda<'a>(
 
 /// Transfer spl-token from PDA
 pub fn transfer_from_pda<'a>(
-    program_id: &Pubkey,
     pda: &AccountInfo<'a>,
+    program_id: &Pubkey,
     pda_seeds: &[&[u8]],
     wallet: &AccountInfo<'a>,
     amount: u64,

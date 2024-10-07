@@ -2,11 +2,11 @@
 #[repr(u32)]
 pub enum CustomError {
     InvalidPDAKey = 101,
-    NotOwnedByTokenProgram = 102,
-    UnauthorizedClaimer = 103,
-    ZeroAmount = 104,
-    CliffOverDuration = 105,
-    StartCliffOverflow = 106,
+    NotOwnedByTokenProgram,
+    UnauthorizedClaimer,
+    ZeroAmount,
+    CliffOverDuration,
+    StartCliffOverflow,
     WriteToPDAForbidden,
 }
 
@@ -27,5 +27,6 @@ mod test {
     #[test]
     fn test_convert_error() {
         assert!(ProgramError::from(101) == ProgramError::Custom(CustomError::InvalidPDAKey.into()));
+        assert!(ProgramError::from(104) == ProgramError::Custom(CustomError::ZeroAmount.into()));
     }
 }

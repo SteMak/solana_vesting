@@ -2,7 +2,7 @@
 name = "solana-vesting"
 version = "0.1.0"
 description = "Solana Vesting SC"
-authors = ["SteMak <chestedos@gmail.com>", "Erengonen <erengn53@gmail.com>"]
+authors = ["SteMak <chestedos@gmail.com>"]
 repository = "https://github.com/SteMak/solana_vesting"
 edition = "2018"
 
@@ -20,3 +20,6 @@ solana-sdk = "1.18.17"
 
 [lib]
 crate-type = ["cdylib", "lib"]
+
+[profile.release]
+overflow-checks = true

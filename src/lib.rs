@@ -1,5 +1,3 @@
-#![allow(clippy::too_many_arguments)]
-
 use solana_program::{
     account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, pubkey::Pubkey,
 };
