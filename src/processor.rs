@@ -53,8 +53,10 @@ pub fn process<'a>(
                 return Err(ProgramError::MissingRequiredSignature);
             }
 
+            // Load mint account
             let mint = next_account_info(accounts_iter)?;
 
+            // Prepare PDAs and validate pubkeys
             let vesting =
                 &mut PDA::<Vesting>::new(program_id, next_account_info(accounts_iter)?, seed.key)?;
             let vault =
@@ -80,33 +82,27 @@ pub fn process<'a>(
             create_vesting(accounts, beneficiary, amount, start, cliff, duration)
         }
 
-        VestingInstruction::Claim {} => {
+        VestingInstruction::Claim { seed_key } => {
             // Validating clock sysvar
             let clock = &Clock::from_account_info(next_account_info(accounts_iter)?)?;
 
-            // Validating seed signer
-            let seed = next_account_info(accounts_iter)?;
-            if !seed.is_signer {
-                return Err(ProgramError::MissingRequiredSignature);
-            }
-
+            // Prepare PDAs and validate pubkeys
             let vesting =
-                &mut PDA::<Vesting>::new(program_id, next_account_info(accounts_iter)?, seed.key)?;
+                &mut PDA::<Vesting>::new(program_id, next_account_info(accounts_iter)?, &seed_key)?;
             let vault = &mut PDA::<'_, Vault>::new(
                 program_id,
                 next_account_info(accounts_iter)?,
-                seed.key,
+                &seed_key,
             )?;
             let distribute = &mut PDA::<'_, Distribute>::new(
                 program_id,
                 next_account_info(accounts_iter)?,
-                seed.key,
+                &seed_key,
             )?;
 
             // Prepare accounts
             let accounts = ClaimAccounts {
                 clock,
-                seed,
                 vesting,
                 vault,
                 distribute,
@@ -131,6 +127,7 @@ pub fn create_vesting(
     if start.overflowing_add(cliff).1 {
         return Err(ProgramError::Custom(CustomError::StartCliffOverflow.into()));
     }
+
     // Parameters check
     if cliff > duration {
         return Err(ProgramError::Custom(CustomError::CliffOverDuration.into()));
@@ -149,7 +146,7 @@ pub fn create_vesting(
         .create(accounts.rent, accounts.signer, accounts.mint, &beneficiary)?;
 
     // Set vesting data
-    accounts.vesting.write(Vesting {
+    accounts.vesting.data = Vesting {
         beneficiary,
         creator: *accounts.signer.key,
         mint: *accounts.mint.key,
@@ -161,7 +158,8 @@ pub fn create_vesting(
         start,
         cliff,
         duration,
-    })?;
+    };
+    accounts.vesting.write()?;
 
     Ok(())
 }
@@ -178,21 +176,18 @@ pub fn claim(accounts: ClaimAccounts) -> ProgramResult {
         accounts.clock.unix_timestamp.try_into().unwrap(),
     );
 
-    let mut distribute = total - accounts.vesting.data.claimed;
-    if accounts.vault.data.amount < distribute {
-        distribute = accounts.vault.data.amount;
-    }
+    let distribute = (total - accounts.vesting.data.claimed).min(accounts.vault.data.amount);
 
     // Update vesting data
-    let mut vesting = accounts.vesting.data.clone();
-
-    vesting.claimed += distribute;
-    accounts.vesting.write(vesting)?;
+    accounts.vesting.data.claimed += distribute;
+    accounts.vesting.write()?;
 
     // Withdraw distributed funds
-    accounts
-        .vault
-        .transfer_out(accounts.distribute.info, distribute)?;
+    if distribute > 0 {
+        accounts
+            .vault
+            .transfer_out(accounts.distribute.info, distribute)?;
+    }
 
     Ok(())
 }

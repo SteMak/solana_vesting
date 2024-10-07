@@ -19,7 +19,9 @@ pub enum VestingInstruction {
         duration: u64,
     },
 
-    Claim {},
+    Claim {
+        seed_key: Pubkey,
+    },
 }
 
 /// Structured CreateVesting instruction account infos
@@ -47,9 +49,6 @@ pub struct CreateVestingAccounts<'a, 'b> {
 pub struct ClaimAccounts<'a, 'b> {
     // [sysvar]
     pub clock: &'b Clock,
-
-    // [signer]
-    pub seed: &'a AccountInfo<'a>,
 
     // [pda writeble]
     pub vesting: &'b mut PDA<'a, Vesting>,

@@ -7,21 +7,30 @@ use spl_token::state::Account;
 
 use crate::{error::CustomError, helpers::*};
 
-pub trait PDAData {}
-
-pub trait PDAMethods<D: PDAData> {
-    fn size() -> usize;
-    fn check(&self) -> Result<(), ProgramError>;
-    fn write(&mut self, data: D) -> Result<(), ProgramError>;
-}
-
+/// Generalized PDA structure
 pub struct PDA<'a, D: PDAData> {
     pub info: &'a AccountInfo<'a>,
+    pub data: D,
     program_id: &'a Pubkey,
     seeds: Vec<u8>,
-    pub data: D,
 }
 
+/// Generalized PDA methods
+pub trait PDAMethods<D: PDAData> {
+    /// Size of data to be allocated in PDA
+    fn size() -> usize;
+
+    /// Validate the pubkey matches the seeds
+    fn check(&self) -> Result<(), ProgramError>;
+
+    /// Serialize the temporary data to account info
+    fn write(&mut self) -> Result<(), ProgramError>;
+}
+
+/// Trait for any PDA internal data
+pub trait PDAData {}
+
+/// Token account to lock funds for vesting
 pub struct Vault {
     pub amount: u64,
 }
@@ -37,7 +46,7 @@ impl PDAMethods<Vault> for PDA<'_, Vault> {
         check_expected_address(self.info.key, self.program_id, &[&self.seeds])
     }
 
-    fn write(&mut self, _: Vault) -> Result<(), ProgramError> {
+    fn write(&mut self) -> Result<(), ProgramError> {
         Err(ProgramError::Custom(
             CustomError::WriteToPDAForbidden.into(),
         ))
@@ -45,6 +54,7 @@ impl PDAMethods<Vault> for PDA<'_, Vault> {
 }
 
 impl<'a> PDA<'a, Vault> {
+    /// Create PDA structure object, validate seeds and pubkey
     pub fn new(
         program_id: &'a Pubkey,
         info: &'a AccountInfo<'a>,
@@ -65,6 +75,7 @@ impl<'a> PDA<'a, Vault> {
         Ok(pda)
     }
 
+    /// Create and init PDA
     pub fn create(
         &self,
         rent: &Rent,
@@ -90,6 +101,7 @@ impl<'a> PDA<'a, Vault> {
     }
 }
 
+/// Token account to with beneficiary as authority
 pub struct Distribute {}
 
 impl PDAData for Distribute {}
@@ -103,7 +115,7 @@ impl PDAMethods<Distribute> for PDA<'_, Distribute> {
         check_expected_address(self.info.key, self.program_id, &[&self.seeds])
     }
 
-    fn write(&mut self, _: Distribute) -> Result<(), ProgramError> {
+    fn write(&mut self) -> Result<(), ProgramError> {
         Err(ProgramError::Custom(
             CustomError::WriteToPDAForbidden.into(),
         ))
@@ -111,6 +123,7 @@ impl PDAMethods<Distribute> for PDA<'_, Distribute> {
 }
 
 impl<'a> PDA<'a, Distribute> {
+    /// Create PDA structure object, validate seeds and pubkey
     pub fn new(
         program_id: &'a Pubkey,
         info: &'a AccountInfo<'a>,
@@ -127,6 +140,7 @@ impl<'a> PDA<'a, Distribute> {
         Ok(pda)
     }
 
+    /// Create and init PDA
     pub fn create(
         &mut self,
         rent: &Rent,
@@ -148,7 +162,7 @@ impl<'a> PDA<'a, Distribute> {
     }
 }
 
-/// Vesting PDA type
+/// Data account to store vesting data
 #[derive(BorshSerialize, BorshDeserialize, Default, Debug, PartialEq, Clone)]
 pub struct Vesting {
     pub beneficiary: Pubkey,
@@ -175,8 +189,7 @@ impl PDAMethods<Vesting> for PDA<'_, Vesting> {
         check_expected_address(self.info.key, self.program_id, &[&self.seeds])
     }
 
-    fn write(&mut self, data: Vesting) -> Result<(), ProgramError> {
-        self.data = data;
+    fn write(&mut self) -> Result<(), ProgramError> {
         self.data
             .serialize(&mut &mut self.info.data.borrow_mut()[..])
             .map_err(|x| ProgramError::BorshIoError(x.to_string()))
@@ -184,6 +197,7 @@ impl PDAMethods<Vesting> for PDA<'_, Vesting> {
 }
 
 impl<'a> PDA<'a, Vesting> {
+    /// Create PDA structure object, validate seeds and pubkey
     pub fn new(
         program_id: &'a Pubkey,
         info: &'a AccountInfo<'a>,
@@ -200,7 +214,7 @@ impl<'a> PDA<'a, Vesting> {
         Ok(pda)
     }
 
-    /// Create Vesting PDA
+    /// Create and init PDA
     pub fn create(&self, rent: &Rent, payer: &AccountInfo<'a>) -> Result<(), ProgramError> {
         create_pda::<PDA<Vesting>, Vesting>(
             self.info,

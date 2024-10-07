@@ -29,7 +29,7 @@ pub fn create_pda<'a, T: PDAMethods<D>, D: PDAData>(
     let space = T::size();
     let lamports = rent.minimum_balance(space);
 
-    // Invoke `CreateAccount`, instruction requires `pda` to be signer
+    // Invoke `CreateAccount`
     invoke_signed(
         &system_instruction::create_account(payer.key, pda.key, lamports, space as u64, owner),
         &[payer.clone(), pda.clone()],
@@ -45,7 +45,7 @@ pub fn check_expected_address(
     program_id: &Pubkey,
     pda_seeds: &[&[u8]],
 ) -> Result<(), ProgramError> {
-    // Get PDA from seeds and compare
+    // Get PDA pubkey from seeds and compare
     let (calculated_key, _) = Pubkey::find_program_address(pda_seeds, program_id);
     if *received_pubkey != calculated_key {
         return Err(ProgramError::Custom(CustomError::InvalidPDAKey.into()));
@@ -60,6 +60,7 @@ pub fn init_token_pda<'a>(
     mint: &AccountInfo<'a>,
     authority: &Pubkey,
 ) -> Result<(), ProgramError> {
+    // Invoke `InitializeAccount3` instruction
     invoke(
         &spl_token::instruction::initialize_account3(
             &spl_token::id(),
@@ -80,7 +81,7 @@ pub fn transfer_to_pda<'a>(
     authority: &AccountInfo<'a>,
     amount: u64,
 ) -> Result<(), ProgramError> {
-    // Invoke `Transfer`
+    // Invoke `Transfer` instruction
     invoke(
         &spl_token::instruction::transfer(
             &spl_token::id(),
@@ -108,7 +109,7 @@ pub fn transfer_from_pda<'a>(
     let (calculated_key, bump) = Pubkey::find_program_address(pda_seeds, program_id);
     assert!(*pda.key == calculated_key);
 
-    // Invoke `Transfer`, instruction requires `pda` to be signer
+    // Invoke `Transfer` instruction
     invoke_signed(
         &spl_token::instruction::transfer(
             &spl_token::id(),
