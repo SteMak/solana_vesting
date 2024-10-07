@@ -7,17 +7,15 @@ use solana_program::{
     system_instruction,
 };
 
-use crate::error::CustomError;
-
-/// Sized accounts interface
-pub trait PDA {
-    fn size() -> usize;
-}
+use crate::{
+    error::CustomError,
+    pda::{PDAData, PDAMethods},
+};
 
 /// Create PDA using given parameters
-pub fn create_pda<'a, T: PDA>(
-    pda: &AccountInfo<'a>,
+pub fn create_pda<'a, T: PDAMethods<D>, D: PDAData>(
     program_id: &Pubkey,
+    pda: &AccountInfo<'a>,
     pda_seeds: &[&[u8]],
     rent: &Rent,
     payer: &AccountInfo<'a>,
@@ -49,13 +47,13 @@ pub fn create_pda<'a, T: PDA>(
 
 /// Check PDA corresponds seeds
 pub fn check_expected_address(
-    pda: &AccountInfo,
     program_id: &Pubkey,
+    received_pubkey: &Pubkey,
     pda_seeds: &[&[u8]],
 ) -> Result<(), ProgramError> {
     // Get PDA from seeds and compare
     let (calculated_key, _) = Pubkey::find_program_address(pda_seeds, program_id);
-    if *pda.key != calculated_key {
+    if *received_pubkey != calculated_key {
         return Err(ProgramError::Custom(CustomError::InvalidPDAKey.into()));
     }
 
@@ -66,6 +64,7 @@ pub fn check_expected_address(
 pub fn init_token_pda<'a>(
     pda: &AccountInfo<'a>,
     mint: &AccountInfo<'a>,
+    authority: &Pubkey,
 ) -> Result<(), ProgramError> {
     // `InitializeAccount3` instruction requires `pda` to be writable
     assert!(pda.is_writable);
@@ -76,7 +75,12 @@ pub fn init_token_pda<'a>(
 
     // Invoke `InitializeAccount3`, instruction requires `mint` to be provided
     invoke(
-        &spl_token::instruction::initialize_account3(&spl_token::id(), pda.key, mint.key, pda.key)?,
+        &spl_token::instruction::initialize_account3(
+            &spl_token::id(),
+            pda.key,
+            mint.key,
+            authority,
+        )?,
         &[pda.clone(), mint.clone()],
     )?;
 
@@ -106,7 +110,7 @@ pub fn transfer_to_pda<'a>(
             &spl_token::id(),
             wallet.key,
             pda.key,
-            &authority.key,
+            authority.key,
             &[],
             amount,
         )?,
@@ -118,8 +122,8 @@ pub fn transfer_to_pda<'a>(
 
 /// Transfer spl-token from PDA
 pub fn transfer_from_pda<'a>(
-    pda: &AccountInfo<'a>,
     program_id: &Pubkey,
+    pda: &AccountInfo<'a>,
     pda_seeds: &[&[u8]],
     wallet: &AccountInfo<'a>,
     amount: u64,
@@ -143,7 +147,7 @@ pub fn transfer_from_pda<'a>(
             &spl_token::id(),
             pda.key,
             wallet.key,
-            &pda.key,
+            pda.key,
             &[],
             amount,
         )?,

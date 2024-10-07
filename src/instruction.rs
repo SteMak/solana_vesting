@@ -5,13 +5,13 @@ use solana_program::{
     sysvar::{clock::Clock, rent::Rent},
 };
 
+use crate::pda::{Distribute, Vault, Vesting, PDA};
+
 /// Instruction enum definition
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub enum VestingInstruction {
     CreateVesting {
-        user: Pubkey,
-        nonce: u64,
-
+        beneficiary: Pubkey,
         amount: u64,
 
         start: u64,
@@ -19,45 +19,42 @@ pub enum VestingInstruction {
         duration: u64,
     },
 
-    Claim {
-        user: Pubkey,
-        nonce: u64,
-    },
+    Claim {},
 }
 
 /// Structured CreateVesting instruction account infos
 pub struct CreateVestingAccounts<'a, 'b> {
     // [sysvar]
-    pub rent: &'a Rent,
+    pub rent: &'b Rent,
 
     // [signer writeble]
-    pub signer: &'a AccountInfo<'b>,
+    pub signer: &'a AccountInfo<'a>,
+    // [signer]
+    pub seed: &'a AccountInfo<'a>,
+
     // [token_mint]
-    pub mint: &'a AccountInfo<'b>,
-    // [writeble token_wallet]
-    pub wallet: &'a AccountInfo<'b>,
+    pub mint: &'a AccountInfo<'a>,
 
     // [pda writeble]
-    pub vesting: &'a AccountInfo<'b>,
+    pub vesting: &'b mut PDA<'a, Vesting>,
     // [pda writeble token_wallet]
-    pub vault: &'a AccountInfo<'b>,
+    pub vault: &'b mut PDA<'a, Vault>,
+    // [pda writeble token_wallet]
+    pub distribute: &'b mut PDA<'a, Distribute>,
 }
 
 /// Structured Claim instruction account infos
 pub struct ClaimAccounts<'a, 'b> {
     // [sysvar]
-    pub clock: &'a Clock,
+    pub clock: &'b Clock,
 
-    #[allow(dead_code)]
     // [signer]
-    pub signer: &'a AccountInfo<'b>,
-    // [token_mint]
-    pub mint: &'a AccountInfo<'b>,
-    // [writeble token_wallet]
-    pub wallet: &'a AccountInfo<'b>,
+    pub seed: &'a AccountInfo<'a>,
 
     // [pda writeble]
-    pub vesting: &'a AccountInfo<'b>,
+    pub vesting: &'b mut PDA<'a, Vesting>,
     // [pda writeble token_wallet]
-    pub vault: &'a AccountInfo<'b>,
+    pub vault: &'b mut PDA<'a, Vault>,
+    // [pda writeble token_wallet]
+    pub distribute: &'b mut PDA<'a, Distribute>,
 }

@@ -7,6 +7,7 @@ pub enum CustomError {
     ZeroAmount = 104,
     CliffOverDuration = 105,
     StartCliffOverflow = 106,
+    WriteToPDAForbidden,
 }
 
 impl From<CustomError> for u32 {
