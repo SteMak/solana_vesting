@@ -53,13 +53,7 @@ pub fn process<'a>(
                 return Err(ProgramError::MissingRequiredSignature);
             }
 
-            // Mint is token identifier, we can't fully validate it
             let mint = next_account_info(accounts_iter)?;
-            if *mint.owner != spl_token::id() {
-                return Err(ProgramError::Custom(
-                    CustomError::NotOwnedByTokenProgram.into(),
-                ));
-            }
 
             let vesting =
                 &mut PDA::<Vesting>::new(program_id, next_account_info(accounts_iter)?, seed.key)?;

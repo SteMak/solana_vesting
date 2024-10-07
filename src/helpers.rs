@@ -21,12 +21,6 @@ pub fn create_pda<'a, T: PDAMethods<D>, D: PDAData>(
     payer: &AccountInfo<'a>,
     owner: &Pubkey,
 ) -> Result<(), ProgramError> {
-    // `CreateAccount` instruction requires `payer` to be writable signer
-    assert!(payer.is_signer);
-    assert!(payer.is_writable);
-    // `CreateAccount` instruction requires `pda` to be writable and signer (invoke_signed)
-    assert!(pda.is_writable);
-
     // Get `bump` seed and check `pda` corresponds seeds
     let (calculated_key, bump) = Pubkey::find_program_address(pda_seeds, program_id);
     assert!(*pda.key == calculated_key);
@@ -66,14 +60,6 @@ pub fn init_token_pda<'a>(
     mint: &AccountInfo<'a>,
     authority: &Pubkey,
 ) -> Result<(), ProgramError> {
-    // `InitializeAccount3` instruction requires `pda` to be writable
-    assert!(pda.is_writable);
-
-    // Sanity token account ownership check
-    assert!(*mint.owner == spl_token::id());
-    assert!(*pda.owner == spl_token::id());
-
-    // Invoke `InitializeAccount3`, instruction requires `mint` to be provided
     invoke(
         &spl_token::instruction::initialize_account3(
             &spl_token::id(),
@@ -94,16 +80,6 @@ pub fn transfer_to_pda<'a>(
     authority: &AccountInfo<'a>,
     amount: u64,
 ) -> Result<(), ProgramError> {
-    // `Transfer` instruction requires `authority` to be signer
-    assert!(authority.is_signer);
-    // `Transfer` instruction requires `wallet` and `pda` to be writable
-    assert!(wallet.is_writable);
-    assert!(pda.is_writable);
-
-    // Sanity token account ownership checks
-    assert!(*pda.owner == spl_token::id());
-    assert!(*wallet.owner == spl_token::id());
-
     // Invoke `Transfer`
     invoke(
         &spl_token::instruction::transfer(
@@ -128,15 +104,6 @@ pub fn transfer_from_pda<'a>(
     wallet: &AccountInfo<'a>,
     amount: u64,
 ) -> Result<(), ProgramError> {
-    // `Transfer` instruction requires `pda` to be writable and signer (invoke_signed)
-    assert!(pda.is_writable);
-    // `Transfer` instruction requires `wallet` to be writable
-    assert!(wallet.is_writable);
-
-    // Sanity token account ownership checks
-    assert!(*pda.owner == spl_token::id());
-    assert!(*wallet.owner == spl_token::id());
-
     // Get `bump` seed and check `pda` corresponds seeds
     let (calculated_key, bump) = Pubkey::find_program_address(pda_seeds, program_id);
     assert!(*pda.key == calculated_key);
