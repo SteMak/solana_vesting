@@ -38,7 +38,7 @@ pub fn process<'a>(
             duration,
         } => {
             // Validating rent sysvar
-            let rent = Rent::from_account_info(&accounts[0])?;
+            let rent = Rent::from_account_info(next_account_info(accounts_iter)?)?;
             let rent_ = &rent;
 
             // Validating signer
