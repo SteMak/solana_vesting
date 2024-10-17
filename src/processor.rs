@@ -199,7 +199,8 @@ fn calculate_amount(start: u64, cliff: u64, duration: u64, amount: u64, now: u64
     }
 
     if now - start >= duration {
-        return amount;
+        // Free any funds left in Vault
+        return u64::MAX;
     }
 
     // Due to `u64 * u64 = u128` and `(now - start) / duration < 1` we have no overflow and best precision
@@ -217,16 +218,16 @@ mod test {
 
     #[test]
     fn test_calculate_amount() {
-        assert!(calculate_amount(0, 0, 0, 0, 500) == 0);
-        assert!(calculate_amount(1000, 20, 100, 1000, 500) == 0);
-        assert!(calculate_amount(1000, 20, 100, 1000, 1000) == 0);
-        assert!(calculate_amount(1000, 20, 100, 1000, 1010) == 0);
-        assert!(calculate_amount(1000, 20, 100, 1000, 1019) == 0);
-        assert!(calculate_amount(1000, 20, 100, 1000, 1020) == 200);
-        assert!(calculate_amount(1000, 20, 100, 1000, 1090) == 900);
-        assert!(calculate_amount(1000, 20, 100, 1000, 1099) == 990);
-        assert!(calculate_amount(1000, 20, 100, 1000, 1100) == 1000);
-        assert!(calculate_amount(1000, 20, 100, 1000, 1200) == 1000);
+        assert_eq!(calculate_amount(0, 0, 0, 0, 500), u64::MAX);
+        assert_eq!(calculate_amount(1000, 20, 100, 1000, 500), 0);
+        assert_eq!(calculate_amount(1000, 20, 100, 1000, 1000), 0);
+        assert_eq!(calculate_amount(1000, 20, 100, 1000, 1010), 0);
+        assert_eq!(calculate_amount(1000, 20, 100, 1000, 1019), 0);
+        assert_eq!(calculate_amount(1000, 20, 100, 1000, 1020), 200);
+        assert_eq!(calculate_amount(1000, 20, 100, 1000, 1090), 900);
+        assert_eq!(calculate_amount(1000, 20, 100, 1000, 1099), 990);
+        assert_eq!(calculate_amount(1000, 20, 100, 1000, 1100), u64::MAX);
+        assert_eq!(calculate_amount(1000, 20, 100, 1000, 1200), u64::MAX);
     }
 
     #[test]
