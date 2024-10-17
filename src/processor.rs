@@ -68,7 +68,7 @@ pub fn process<'a>(
             )?;
 
             // Prepare accounts
-            let accounts = CreateVestingAccounts {
+            let accounts = &mut CreateVestingAccounts {
                 rent: rent_,
                 signer,
                 seed,
@@ -101,7 +101,7 @@ pub fn process<'a>(
             )?;
 
             // Prepare accounts
-            let accounts = ClaimAccounts {
+            let accounts = &mut ClaimAccounts {
                 clock,
                 vesting,
                 vault,
@@ -116,7 +116,7 @@ pub fn process<'a>(
 
 /// Create vesting instruction logic
 pub fn create_vesting(
-    accounts: CreateVestingAccounts,
+    accounts: &mut CreateVestingAccounts,
     beneficiary: Pubkey,
     amount: u64,
     start: u64,
@@ -165,7 +165,7 @@ pub fn create_vesting(
 }
 
 /// Claim vesting instruction logic
-pub fn claim(accounts: ClaimAccounts) -> ProgramResult {
+pub fn claim(accounts: &mut ClaimAccounts) -> ProgramResult {
     // Get unlocked funds amount
     let total = calculate_amount(
         accounts.vesting.data.start,
@@ -206,84 +206,71 @@ fn calculate_amount(start: u64, cliff: u64, duration: u64, amount: u64, now: u64
     (amount as u128 * (now - start) as u128 / duration as u128) as u64
 }
 
-// /// Sanity tests
-// #[cfg(test)]
-// mod test {
-//     use solana_sdk::{account_info::AccountInfo, clock::Epoch, pubkey::Pubkey, rent::Rent};
+/// Sanity tests
+#[cfg(test)]
+mod test {
+    use solana_sdk::{account_info::AccountInfo, clock::Epoch, pubkey::Pubkey, rent::Rent};
 
-//     use super::{calculate_amount, create_vesting, CreateVestingAccounts};
+    use crate::pda::{Distribute, Vault, Vesting, PDA};
 
-//     #[test]
-//     fn test_calculate_amount() {
-//         assert!(calculate_amount(0, 0, 0, 0, 500) == 0);
-//         assert!(calculate_amount(1000, 20, 100, 1000, 500) == 0);
-//         assert!(calculate_amount(1000, 20, 100, 1000, 1000) == 0);
-//         assert!(calculate_amount(1000, 20, 100, 1000, 1010) == 0);
-//         assert!(calculate_amount(1000, 20, 100, 1000, 1019) == 0);
-//         assert!(calculate_amount(1000, 20, 100, 1000, 1020) == 200);
-//         assert!(calculate_amount(1000, 20, 100, 1000, 1090) == 900);
-//         assert!(calculate_amount(1000, 20, 100, 1000, 1099) == 990);
-//         assert!(calculate_amount(1000, 20, 100, 1000, 1100) == 1000);
-//         assert!(calculate_amount(1000, 20, 100, 1000, 1200) == 1000);
-//     }
+    use super::{calculate_amount, create_vesting, CreateVestingAccounts};
 
-//     #[test]
-//     fn test_create_vesting_revert() {
-//         let no_account = Pubkey::default();
-//         let lamports = &mut 0;
-//         let dummy_account = AccountInfo::new(
-//             &no_account,
-//             false,
-//             false,
-//             lamports,
-//             &mut [],
-//             &no_account,
-//             false,
-//             Epoch::default(),
-//         );
-//         let vesting_accounts = CreateVestingAccounts {
-//             mint: &dummy_account,
-//             signer: &dummy_account,
-//             vault: &dummy_account,
-//             vesting: &dummy_account,
-//             wallet: &dummy_account,
-//             rent: &Rent::default(),
-//         };
+    #[test]
+    fn test_calculate_amount() {
+        assert!(calculate_amount(0, 0, 0, 0, 500) == 0);
+        assert!(calculate_amount(1000, 20, 100, 1000, 500) == 0);
+        assert!(calculate_amount(1000, 20, 100, 1000, 1000) == 0);
+        assert!(calculate_amount(1000, 20, 100, 1000, 1010) == 0);
+        assert!(calculate_amount(1000, 20, 100, 1000, 1019) == 0);
+        assert!(calculate_amount(1000, 20, 100, 1000, 1020) == 200);
+        assert!(calculate_amount(1000, 20, 100, 1000, 1090) == 900);
+        assert!(calculate_amount(1000, 20, 100, 1000, 1099) == 990);
+        assert!(calculate_amount(1000, 20, 100, 1000, 1100) == 1000);
+        assert!(calculate_amount(1000, 20, 100, 1000, 1200) == 1000);
+    }
 
-//         create_vesting(
-//             &Pubkey::new_unique(),
-//             &vesting_accounts,
-//             Pubkey::new_unique(),
-//             3,
-//             1000,
-//             1000,
-//             120,
-//             100,
-//         )
-//         .unwrap_err();
+    #[test]
+    fn test_create_vesting_revert() {
+        let no_account = Pubkey::default();
+        let lamports = &mut 0;
 
-//         create_vesting(
-//             &Pubkey::new_unique(),
-//             &vesting_accounts,
-//             Pubkey::new_unique(),
-//             3,
-//             0,
-//             1000,
-//             20,
-//             100,
-//         )
-//         .unwrap_err();
+        let dummy_account = AccountInfo::new(
+            &no_account,
+            false,
+            false,
+            lamports,
+            &mut [],
+            &no_account,
+            false,
+            Epoch::default(),
+        );
+        let vesting_accounts = &mut CreateVestingAccounts {
+            rent: &Rent::default(),
+            signer: &dummy_account,
+            mint: &dummy_account,
+            seed: &dummy_account,
+            vesting: &mut PDA {
+                data: Vesting::default(),
+                info: &dummy_account,
+                program_id: &no_account,
+                seeds: vec![],
+            },
+            vault: &mut PDA {
+                data: Vault::default(),
+                info: &dummy_account,
+                program_id: &no_account,
+                seeds: vec![],
+            },
+            distribute: &mut PDA {
+                data: Distribute::default(),
+                info: &dummy_account,
+                program_id: &no_account,
+                seeds: vec![],
+            },
+        };
 
-//         create_vesting(
-//             &Pubkey::new_unique(),
-//             &vesting_accounts,
-//             Pubkey::new_unique(),
-//             3,
-//             1000,
-//             u64::MAX - 10,
-//             20,
-//             100,
-//         )
-//         .unwrap_err();
-//     }
-// }
+        create_vesting(vesting_accounts, Pubkey::new_unique(), 10, 15, 40, 30).unwrap_err();
+        create_vesting(vesting_accounts, Pubkey::new_unique(), 10, u64::MAX, 20, 30).unwrap_err();
+        create_vesting(vesting_accounts, Pubkey::new_unique(), 0, 15, 20, 30).unwrap_err();
+    }
+}

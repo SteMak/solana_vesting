@@ -125,3 +125,24 @@ pub fn transfer_from_pda<'a>(
 
     Ok(())
 }
+
+/// Sanity tests
+#[cfg(test)]
+mod test {
+    use solana_sdk::pubkey::Pubkey;
+
+    use super::check_expected_address;
+
+    #[test]
+    fn test_expected_address() {
+        let program_id = Pubkey::new_unique();
+        let seeds: &[&[u8]] = &[&[12, 34]];
+        let (correct, _) = Pubkey::find_program_address(seeds, &program_id);
+
+        check_expected_address(&Pubkey::new_unique(), &program_id, seeds).unwrap_err();
+        check_expected_address(&correct, &Pubkey::new_unique(), seeds).unwrap_err();
+        check_expected_address(&correct, &program_id, &[&[13, 34]]).unwrap_err();
+        check_expected_address(&correct, &program_id, &[&[13, 33]]).unwrap_err();
+        check_expected_address(&correct, &program_id, seeds).unwrap();
+    }
+}

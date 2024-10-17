@@ -11,8 +11,19 @@ use crate::{error::CustomError, helpers::*};
 pub struct PDA<'a, D: PDAData> {
     pub info: &'a AccountInfo<'a>,
     pub data: D,
-    program_id: &'a Pubkey,
-    seeds: Vec<u8>,
+    pub program_id: &'a Pubkey,
+    // Max 18 seeds each of max 32 bytes, https://docs.rs/solana-program/1.18.17/src/solana_program/pubkey.rs.html#585-592
+    pub seeds: Vec<Vec<u8>>,
+}
+
+/// Hide the Vec<Vec<us>> -> &[&[u8]] conversion overhead
+macro_rules! seeds_convert {
+    ($vec:expr) => {
+        $vec.iter()
+            .map(|v| v.as_slice())
+            .collect::<Vec<_>>()
+            .as_slice()
+    };
 }
 
 /// Generalized PDA methods
@@ -31,6 +42,7 @@ pub trait PDAMethods<D: PDAData> {
 pub trait PDAData {}
 
 /// Token account to lock funds for vesting
+#[derive(Default, Debug, PartialEq, Clone)]
 pub struct Vault {
     pub amount: u64,
 }
@@ -43,7 +55,7 @@ impl PDAMethods<Vault> for PDA<'_, Vault> {
     }
 
     fn check(&self) -> Result<(), ProgramError> {
-        check_expected_address(self.info.key, self.program_id, &[&self.seeds])
+        check_expected_address(self.info.key, self.program_id, seeds_convert!(self.seeds))
     }
 
     fn write(&mut self) -> Result<(), ProgramError> {
@@ -63,7 +75,7 @@ impl<'a> PDA<'a, Vault> {
         let pda = PDA {
             info,
             program_id,
-            seeds: ["VAULT".as_bytes().to_vec(), seed_key.as_ref().to_vec()].concat(),
+            seeds: vec!["VAULT".as_bytes().to_vec(), seed_key.as_ref().to_vec()],
             data: Vault {
                 amount: Account::unpack_from_slice(&info.data.borrow())
                     .unwrap_or_default()
@@ -85,7 +97,7 @@ impl<'a> PDA<'a, Vault> {
         create_pda::<PDA<Vault>, Vault>(
             self.info,
             self.program_id,
-            &[&self.seeds],
+            seeds_convert!(self.seeds),
             rent,
             payer,
             &spl_token::id(),
@@ -97,11 +109,18 @@ impl<'a> PDA<'a, Vault> {
 
     /// Transfer spl-token from Vault
     pub fn transfer_out(&self, wallet: &AccountInfo<'a>, amount: u64) -> Result<(), ProgramError> {
-        transfer_from_pda(self.info, self.program_id, &[&self.seeds], wallet, amount)
+        transfer_from_pda(
+            self.info,
+            self.program_id,
+            seeds_convert!(self.seeds),
+            wallet,
+            amount,
+        )
     }
 }
 
 /// Token account to with beneficiary as authority
+#[derive(Default, Debug, PartialEq, Clone)]
 pub struct Distribute {}
 
 impl PDAData for Distribute {}
@@ -112,7 +131,7 @@ impl PDAMethods<Distribute> for PDA<'_, Distribute> {
     }
 
     fn check(&self) -> Result<(), ProgramError> {
-        check_expected_address(self.info.key, self.program_id, &[&self.seeds])
+        check_expected_address(self.info.key, self.program_id, seeds_convert!(self.seeds))
     }
 
     fn write(&mut self) -> Result<(), ProgramError> {
@@ -132,7 +151,7 @@ impl<'a> PDA<'a, Distribute> {
         let pda = PDA {
             info,
             program_id,
-            seeds: ["DISTRIBUTE".as_bytes().to_vec(), seed_key.as_ref().to_vec()].concat(),
+            seeds: vec!["DISTRIBUTE".as_bytes().to_vec(), seed_key.as_ref().to_vec()],
             data: Distribute {},
         };
         pda.check()?;
@@ -151,7 +170,7 @@ impl<'a> PDA<'a, Distribute> {
         create_pda::<PDA<Distribute>, Distribute>(
             self.info,
             self.program_id,
-            &[&self.seeds],
+            seeds_convert!(self.seeds),
             rent,
             payer,
             &spl_token::id(),
@@ -182,11 +201,11 @@ impl PDAData for Vesting {}
 
 impl PDAMethods<Vesting> for PDA<'_, Vesting> {
     fn size() -> usize {
-        std::mem::size_of::<Account>()
+        std::mem::size_of::<Vesting>()
     }
 
     fn check(&self) -> Result<(), ProgramError> {
-        check_expected_address(self.info.key, self.program_id, &[&self.seeds])
+        check_expected_address(self.info.key, self.program_id, seeds_convert!(self.seeds))
     }
 
     fn write(&mut self) -> Result<(), ProgramError> {
@@ -206,7 +225,7 @@ impl<'a> PDA<'a, Vesting> {
         let pda = PDA {
             info,
             program_id,
-            seeds: ["VESTING".as_bytes().to_vec(), seed_key.as_ref().to_vec()].concat(),
+            seeds: vec!["VESTING".as_bytes().to_vec(), seed_key.as_ref().to_vec()],
             data: Vesting::try_from_slice(&info.data.borrow()).unwrap_or_default(),
         };
         pda.check()?;
@@ -219,7 +238,7 @@ impl<'a> PDA<'a, Vesting> {
         create_pda::<PDA<Vesting>, Vesting>(
             self.info,
             self.program_id,
-            &[&self.seeds],
+            seeds_convert!(self.seeds),
             rent,
             payer,
             self.program_id,
@@ -227,118 +246,120 @@ impl<'a> PDA<'a, Vesting> {
     }
 }
 
-// /// Sanity tests
-// #[cfg(test)]
-// mod test {
-//     use std::mem;
+/// Sanity tests
+#[cfg(test)]
+mod test {
+    use solana_program::program_pack::Pack;
+    use solana_sdk::{account_info::AccountInfo, clock::Epoch, pubkey::Pubkey};
+    use spl_token::state::Account;
 
-//     use crate::pda::Vesting;
+    use super::{PDAMethods, Vault, Vesting, PDA};
 
-//     use solana_sdk::{account_info::AccountInfo, clock::Epoch, pubkey::Pubkey};
+    #[test]
+    fn test_check_info() {
+        let program_id = Pubkey::new_unique();
+        let seed_key = Pubkey::new_unique();
+        let lamports = &mut 0;
 
-//     use super::Vault;
+        let (vesting_key, _) =
+            Pubkey::find_program_address(&["VESTING".as_bytes(), seed_key.as_ref()], &program_id);
 
-//     #[test]
-//     fn test_check_info() {
-//         let program_id = &Pubkey::new_unique();
-//         let nonce = 10u64;
+        let mut data = vec![0; PDA::<Vesting>::size()];
+        let info = AccountInfo::new(
+            &vesting_key,
+            false,
+            false,
+            lamports,
+            &mut data,
+            &program_id,
+            false,
+            Epoch::default(),
+        );
 
-//         let mint = Pubkey::new_unique();
-//         let user = Pubkey::new_unique();
+        let vesting = &mut PDA::<Vesting>::new(&program_id, &info, &seed_key).unwrap();
 
-//         let (vesting_key, _) = Pubkey::find_program_address(
-//             &[
-//                 "VESTING".as_bytes(),
-//                 &mint.to_bytes(),
-//                 &user.to_bytes(),
-//                 &nonce.to_le_bytes(),
-//             ],
-//             program_id,
-//         );
-//         let vesting_bal = &mut 100;
-//         let vesting_data = &mut [0; 100];
-//         let vesting = AccountInfo::new(
-//             &vesting_key,
-//             false,
-//             true,
-//             vesting_bal,
-//             vesting_data,
-//             program_id,
-//             false,
-//             Epoch::default(),
-//         );
+        vesting.check().unwrap();
+        vesting.seeds = vec!["VESTINK".as_bytes().to_vec(), seed_key.as_ref().to_vec()];
+        vesting.check().unwrap_err();
+    }
 
-//         let (vault_key, _) = Pubkey::find_program_address(
-//             &[
-//                 "VAULT".as_bytes(),
-//                 &mint.to_bytes(),
-//                 &user.to_bytes(),
-//                 &nonce.to_le_bytes(),
-//             ],
-//             program_id,
-//         );
-//         let vault_bal = &mut 100;
-//         let vault_data = &mut [0; 100];
-//         let vault = AccountInfo::new(
-//             &vault_key,
-//             false,
-//             true,
-//             vault_bal,
-//             vault_data,
-//             program_id,
-//             false,
-//             Epoch::default(),
-//         );
+    #[test]
+    fn test_read() {
+        let program_id = Pubkey::new_unique();
+        let seed_key = Pubkey::new_unique();
+        let lamports = &mut 0;
 
-//         Vesting::check_info(&vesting, program_id, &mint, user, nonce).unwrap();
-//         Vault::check_info(&vesting, program_id, &mint, user, nonce).unwrap_err();
-//         Vesting::check_info(&vault, program_id, &mint, user, nonce).unwrap_err();
-//         Vault::check_info(&vault, program_id, &mint, user, nonce).unwrap();
-//     }
+        let (vault_key, _) =
+            Pubkey::find_program_address(&["VAULT".as_bytes(), seed_key.as_ref()], &program_id);
 
-//     #[test]
-//     fn test_set_get() {
-//         let program_id = &Pubkey::new_unique();
+        {
+            let mut data = vec![0; PDA::<Vault>::size()];
+            let info = AccountInfo::new(
+                &vault_key,
+                false,
+                false,
+                lamports,
+                &mut data,
+                &program_id,
+                false,
+                Epoch::default(),
+            );
 
-//         let vesting_key = Pubkey::new_unique();
-//         let vesting_bal = &mut 100;
-//         let vesting_data = &mut [0; mem::size_of::<Vesting>()];
-//         let vesting = AccountInfo::new(
-//             &vesting_key,
-//             false,
-//             true,
-//             vesting_bal,
-//             vesting_data,
-//             program_id,
-//             false,
-//             Epoch::default(),
-//         );
+            let vault = &mut PDA::<Vault>::new(&program_id, &info, &seed_key).unwrap();
 
-//         let data = Vesting {
-//             amount: 100,
-//             claimed: 10,
-//             cliff: 20,
-//             duration: 50,
-//             start: 0,
-//         };
-//         data.clone().set_data(&vesting).unwrap();
-//         assert!(Vesting::get_data(&vesting).unwrap() == data);
+            assert_eq!(vault.data.amount, 0);
+        }
+        {
+            let data = &mut vec![0; PDA::<Vault>::size()];
+            Account {
+                amount: 1010,
+                ..Account::default()
+            }
+            .pack_into_slice(data);
+            let info = AccountInfo::new(
+                &vault_key,
+                false,
+                false,
+                lamports,
+                data,
+                &program_id,
+                false,
+                Epoch::default(),
+            );
 
-//         let bad_vesting_key = Pubkey::new_unique();
-//         let bad_vesting_bal = &mut 100;
-//         let bad_vesting_data = &mut [0; mem::size_of::<Vesting>() - 10];
-//         let bad_vesting = AccountInfo::new(
-//             &bad_vesting_key,
-//             false,
-//             true,
-//             bad_vesting_bal,
-//             bad_vesting_data,
-//             program_id,
-//             false,
-//             Epoch::default(),
-//         );
+            let vault = &mut PDA::<Vault>::new(&program_id, &info, &seed_key).unwrap();
 
-//         data.clone().set_data(&bad_vesting).unwrap_err();
-//         Vesting::get_data(&bad_vesting).unwrap_err();
-//     }
-// }
+            assert_eq!(vault.data.amount, 1010);
+        }
+    }
+
+    #[test]
+    fn test_write() {
+        let program_id = Pubkey::new_unique();
+        let seed_key = Pubkey::new_unique();
+        let lamports = &mut 0;
+
+        let (vesting_key, _) =
+            Pubkey::find_program_address(&["VESTING".as_bytes(), seed_key.as_ref()], &program_id);
+
+        let mut data = vec![0; PDA::<Vesting>::size()];
+        let info = AccountInfo::new(
+            &vesting_key,
+            false,
+            false,
+            lamports,
+            &mut data,
+            &program_id,
+            false,
+            Epoch::default(),
+        );
+
+        let vesting = &mut PDA::<Vesting>::new(&program_id, &info, &seed_key).unwrap();
+        vesting.data.amount = 1010;
+        vesting.write().unwrap();
+
+        let vesting_new = &mut PDA::<Vesting>::new(&program_id, vesting.info, &seed_key).unwrap();
+
+        assert_eq!(vesting_new.data.amount, 1010);
+    }
+}
