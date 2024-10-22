@@ -25,35 +25,35 @@ pub enum VestingInstruction {
 }
 
 /// Structured CreateVesting instruction account infos
-pub struct CreateVestingAccounts<'a, 'b> {
+pub struct CreateVestingAccounts<'a, 'b, 'c> {
     // [sysvar]
-    pub rent: &'b Rent,
+    pub rent: &'c Rent,
 
     // [signer writeble]
-    pub signer: &'a AccountInfo<'a>,
+    pub signer: &'a AccountInfo<'b>,
     // [signer]
-    pub seed: &'a AccountInfo<'a>,
+    pub seed: &'a AccountInfo<'b>,
 
     // [token_mint]
-    pub mint: &'a AccountInfo<'a>,
+    pub mint: &'a AccountInfo<'b>,
 
     // [pda writeble]
-    pub vesting: &'b mut PDA<'a, Vesting>,
+    pub vesting: &'c mut PDA<'a, 'b, Vesting>,
     // [pda writeble token_wallet]
-    pub vault: &'b mut PDA<'a, Vault>,
+    pub vault: &'c mut PDA<'a, 'b, Vault>,
     // [pda writeble token_wallet]
-    pub distribute: &'b mut PDA<'a, Distribute>,
+    pub distribute: &'c mut PDA<'a, 'b, Distribute>,
 }
 
 /// Structured Claim instruction account infos
-pub struct ClaimAccounts<'a, 'b> {
+pub struct ClaimAccounts<'a, 'b, 'c> {
     // [sysvar]
-    pub clock: &'b Clock,
+    pub clock: &'c Clock,
 
     // [pda writeble]
-    pub vesting: &'b mut PDA<'a, Vesting>,
+    pub vesting: &'c mut PDA<'a, 'b, Vesting>,
     // [pda writeble token_wallet]
-    pub vault: &'b mut PDA<'a, Vault>,
+    pub vault: &'c mut PDA<'a, 'b, Vault>,
     // [pda writeble token_wallet]
-    pub distribute: &'b mut PDA<'a, Distribute>,
+    pub distribute: &'c mut PDA<'a, 'b, Distribute>,
 }

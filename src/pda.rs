@@ -8,8 +8,8 @@ use spl_token::state::Account;
 use crate::{error::CustomError, helpers::*};
 
 /// Generalized PDA structure
-pub struct PDA<'a, D: PDAData> {
-    pub info: &'a AccountInfo<'a>,
+pub struct PDA<'a, 'b, D: PDAData> {
+    pub info: &'a AccountInfo<'b>,
     pub data: D,
     pub program_id: &'a Pubkey,
     // Max 18 seeds each of max 32 bytes, https://docs.rs/solana-program/1.18.17/src/solana_program/pubkey.rs.html#585-592
@@ -49,7 +49,7 @@ pub struct Vault {
 
 impl PDAData for Vault {}
 
-impl PDAMethods<Vault> for PDA<'_, Vault> {
+impl PDAMethods<Vault> for PDA<'_, '_, Vault> {
     fn size() -> usize {
         std::mem::size_of::<Account>()
     }
@@ -65,13 +65,13 @@ impl PDAMethods<Vault> for PDA<'_, Vault> {
     }
 }
 
-impl<'a> PDA<'a, Vault> {
+impl<'a, 'b> PDA<'a, 'b, Vault> {
     /// Create PDA structure object, validate seeds and pubkey
     pub fn new(
         program_id: &'a Pubkey,
-        info: &'a AccountInfo<'a>,
+        info: &'a AccountInfo<'b>,
         seed_key: &Pubkey,
-    ) -> Result<PDA<'a, Vault>, ProgramError> {
+    ) -> Result<PDA<'a, 'b, Vault>, ProgramError> {
         let pda = PDA {
             info,
             program_id,
@@ -91,8 +91,8 @@ impl<'a> PDA<'a, Vault> {
     pub fn create(
         &self,
         rent: &Rent,
-        payer: &AccountInfo<'a>,
-        mint: &AccountInfo<'a>,
+        payer: &AccountInfo<'b>,
+        mint: &AccountInfo<'b>,
     ) -> Result<(), ProgramError> {
         create_pda::<PDA<Vault>, Vault>(
             self.info,
@@ -108,7 +108,7 @@ impl<'a> PDA<'a, Vault> {
     }
 
     /// Transfer spl-token from Vault
-    pub fn transfer_out(&self, wallet: &AccountInfo<'a>, amount: u64) -> Result<(), ProgramError> {
+    pub fn transfer_out(&self, wallet: &AccountInfo<'b>, amount: u64) -> Result<(), ProgramError> {
         transfer_from_pda(
             self.info,
             self.program_id,
@@ -125,7 +125,7 @@ pub struct Distribute {}
 
 impl PDAData for Distribute {}
 
-impl PDAMethods<Distribute> for PDA<'_, Distribute> {
+impl PDAMethods<Distribute> for PDA<'_, '_, Distribute> {
     fn size() -> usize {
         std::mem::size_of::<Account>()
     }
@@ -141,13 +141,13 @@ impl PDAMethods<Distribute> for PDA<'_, Distribute> {
     }
 }
 
-impl<'a> PDA<'a, Distribute> {
+impl<'a, 'b> PDA<'a, 'b, Distribute> {
     /// Create PDA structure object, validate seeds and pubkey
     pub fn new(
         program_id: &'a Pubkey,
-        info: &'a AccountInfo<'a>,
+        info: &'a AccountInfo<'b>,
         seed_key: &Pubkey,
-    ) -> Result<PDA<'a, Distribute>, ProgramError> {
+    ) -> Result<PDA<'a, 'b, Distribute>, ProgramError> {
         let pda = PDA {
             info,
             program_id,
@@ -163,8 +163,8 @@ impl<'a> PDA<'a, Distribute> {
     pub fn create(
         &mut self,
         rent: &Rent,
-        payer: &AccountInfo<'a>,
-        mint: &AccountInfo<'a>,
+        payer: &AccountInfo<'b>,
+        mint: &AccountInfo<'b>,
         authority: &Pubkey,
     ) -> Result<(), ProgramError> {
         create_pda::<PDA<Distribute>, Distribute>(
@@ -199,7 +199,7 @@ pub struct Vesting {
 
 impl PDAData for Vesting {}
 
-impl PDAMethods<Vesting> for PDA<'_, Vesting> {
+impl PDAMethods<Vesting> for PDA<'_, '_, Vesting> {
     fn size() -> usize {
         std::mem::size_of::<Vesting>()
     }
@@ -215,13 +215,13 @@ impl PDAMethods<Vesting> for PDA<'_, Vesting> {
     }
 }
 
-impl<'a> PDA<'a, Vesting> {
+impl<'a, 'b> PDA<'a, 'b, Vesting> {
     /// Create PDA structure object, validate seeds and pubkey
     pub fn new(
         program_id: &'a Pubkey,
-        info: &'a AccountInfo<'a>,
+        info: &'a AccountInfo<'b>,
         seed_key: &Pubkey,
-    ) -> Result<PDA<'a, Vesting>, ProgramError> {
+    ) -> Result<PDA<'a, 'b, Vesting>, ProgramError> {
         let pda = PDA {
             info,
             program_id,
@@ -234,7 +234,7 @@ impl<'a> PDA<'a, Vesting> {
     }
 
     /// Create and init PDA
-    pub fn create(&self, rent: &Rent, payer: &AccountInfo<'a>) -> Result<(), ProgramError> {
+    pub fn create(&self, rent: &Rent, payer: &AccountInfo<'b>) -> Result<(), ProgramError> {
         create_pda::<PDA<Vesting>, Vesting>(
             self.info,
             self.program_id,

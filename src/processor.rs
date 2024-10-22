@@ -17,8 +17,8 @@ use crate::{
 
 /// Instructions processor
 pub fn process<'a>(
-    program_id: &'a Pubkey,
-    accounts: &'a [AccountInfo<'a>],
+    program_id: &Pubkey,
+    accounts: &[AccountInfo<'a>],
     instruction_data: &[u8],
 ) -> ProgramResult {
     // Decode instruction data
@@ -38,8 +38,7 @@ pub fn process<'a>(
             duration,
         } => {
             // Validating rent sysvar
-            let rent = Rent::from_account_info(next_account_info(accounts_iter)?)?;
-            let rent_ = &rent;
+            let rent = &Rent::from_account_info(next_account_info(accounts_iter)?)?;
 
             // Validating signer
             let signer = next_account_info(accounts_iter)?;
@@ -69,7 +68,7 @@ pub fn process<'a>(
 
             // Prepare accounts
             let accounts = &mut CreateVestingAccounts {
-                rent: rent_,
+                rent,
                 signer,
                 seed,
                 mint,
@@ -89,12 +88,9 @@ pub fn process<'a>(
             // Prepare PDAs and validate pubkeys
             let vesting =
                 &mut PDA::<Vesting>::new(program_id, next_account_info(accounts_iter)?, &seed_key)?;
-            let vault = &mut PDA::<'_, Vault>::new(
-                program_id,
-                next_account_info(accounts_iter)?,
-                &seed_key,
-            )?;
-            let distribute = &mut PDA::<'_, Distribute>::new(
+            let vault =
+                &mut PDA::<Vault>::new(program_id, next_account_info(accounts_iter)?, &seed_key)?;
+            let distribute = &mut PDA::<Distribute>::new(
                 program_id,
                 next_account_info(accounts_iter)?,
                 &seed_key,
