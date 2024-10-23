@@ -33,7 +33,7 @@ pub fn create_pda<'a, T: PDAMethods<D>, D: PDAData>(
     invoke_signed(
         &system_instruction::create_account(payer.key, pda.key, lamports, space as u64, owner),
         &[payer.clone(), pda.clone()],
-        &[pda_seeds, &[&[bump]]],
+        &[&[pda_seeds, &[&[bump]]].concat()],
     )?;
 
     Ok(())
@@ -120,7 +120,7 @@ pub fn transfer_from_pda<'a>(
             amount,
         )?,
         &[pda.clone(), wallet.clone(), pda.clone()],
-        &[pda_seeds, &[&[bump]]],
+        &[&[pda_seeds, &[&[bump]]].concat()],
     )?;
 
     Ok(())
