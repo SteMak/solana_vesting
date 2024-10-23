@@ -110,7 +110,7 @@ async fn test_solana_vesting() {
     let claimer = Keypair::new();
 
     let seed = Keypair::new();
-    let amount = 1000000;
+    let amount = 1_000_000;
     let cliff = 100;
     let duration = 200;
 
@@ -135,7 +135,7 @@ async fn test_solana_vesting() {
     let mint_data = &mut [0; Mint::LEN];
     spl_token::state::Mint {
         is_initialized: true,
-        supply: 10000000000000000,
+        supply: 100_000_000_000,
         ..Default::default()
     }
     .pack_into_slice(mint_data);
