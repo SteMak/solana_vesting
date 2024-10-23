@@ -1,4 +1,4 @@
-use borsh::BorshSerialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program_test::*;
 use solana_sdk::{
     account::Account,
@@ -11,17 +11,17 @@ use solana_sdk::{
     sysvar::{clock, rent},
     transaction::Transaction,
 };
-use solana_vesting::{instruction::VestingInstruction, process_instruction};
+use solana_vesting::{instruction::VestingInstruction, pda::Vesting, process_instruction};
 use spl_token::state::Mint;
 
 #[tokio::test]
 async fn test_solana_vesting() {
-    // This doesn't work for some reason
-
     let program_id = Pubkey::new_unique();
     let vester = Keypair::new();
     let claimer = Keypair::new();
     let seed = Keypair::new();
+
+    let amount = 1000000;
 
     let mut program_test = ProgramTest::new(
         "solana_vesting",
@@ -141,7 +141,7 @@ async fn test_solana_vesting() {
                 program_id,
                 &VestingInstruction::CreateVesting {
                     beneficiary: claimer.pubkey(),
-                    amount: 1000000,
+                    amount,
                     start: clock.unix_timestamp as u64,
                     cliff: 100,
                     duration: 200,
@@ -167,7 +167,7 @@ async fn test_solana_vesting() {
         .await
         .unwrap();
 
-    clock.unix_timestamp += 150;
+    clock.unix_timestamp += 125;
     context.set_sysvar(&clock);
 
     let recent_blockhash = context
@@ -190,6 +190,7 @@ async fn test_solana_vesting() {
                     AccountMeta::new(vesting_key, false),
                     AccountMeta::new(vault_key, false),
                     AccountMeta::new(distribute_key, false),
+                    AccountMeta::new(spl_token::id(), false),
                 ],
             )],
             Some(&claimer.pubkey()),
@@ -198,4 +199,75 @@ async fn test_solana_vesting() {
         ))
         .await
         .unwrap();
+
+    clock.unix_timestamp += 25;
+    context.set_sysvar(&clock);
+
+    let vesting = Vesting::try_from_slice(
+        &context
+            .banks_client
+            .get_account(vesting_key)
+            .await
+            .unwrap()
+            .unwrap()
+            .data,
+    )
+    .unwrap();
+    assert_eq!(vesting.claimed, 0);
+
+    let mut vault = context
+        .banks_client
+        .get_account(vault_key)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut vault_data = spl_token::state::Account::unpack_from_slice(&vault.data).unwrap();
+    vault_data.amount += 1000000;
+    vault_data.pack_into_slice(&mut vault.data);
+    context.set_account(&vault_key, &vault.into());
+
+    let recent_blockhash = context
+        .banks_client
+        .get_new_latest_blockhash(&context.last_blockhash)
+        .await
+        .unwrap();
+    context
+        .banks_client
+        .process_transaction(Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                program_id,
+                &VestingInstruction::Claim {
+                    seed_key: seed.pubkey(),
+                }
+                .try_to_vec()
+                .unwrap(),
+                vec![
+                    AccountMeta::new_readonly(clock::id(), false),
+                    AccountMeta::new(vesting_key, false),
+                    AccountMeta::new(vault_key, false),
+                    AccountMeta::new(distribute_key, false),
+                    AccountMeta::new(spl_token::id(), false),
+                ],
+            )],
+            Some(&claimer.pubkey()),
+            &[&claimer],
+            recent_blockhash,
+        ))
+        .await
+        .unwrap();
+
+    clock.unix_timestamp += 25;
+    context.set_sysvar(&clock);
+
+    let vesting = Vesting::try_from_slice(
+        &context
+            .banks_client
+            .get_account(vesting_key)
+            .await
+            .unwrap()
+            .unwrap()
+            .data,
+    )
+    .unwrap();
+    assert_eq!(vesting.claimed, amount * 3 / 4);
 }
