@@ -16,9 +16,9 @@ use crate::{
 };
 
 /// Instructions processor
-pub fn process<'a>(
+pub fn process(
     program_id: &Pubkey,
-    accounts: &[AccountInfo<'a>],
+    accounts: &[AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
     // Decode instruction data
