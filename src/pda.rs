@@ -51,7 +51,7 @@ impl PDAData for Vault {}
 
 impl PDAMethods<Vault> for PDA<'_, '_, Vault> {
     fn size() -> usize {
-        std::mem::size_of::<Account>()
+        Account::get_packed_len()
     }
 
     fn check(&self) -> Result<(), ProgramError> {
@@ -77,9 +77,13 @@ impl<'a, 'b> PDA<'a, 'b, Vault> {
             program_id,
             seeds: vec!["VAULT".as_bytes().to_vec(), seed_key.as_ref().to_vec()],
             data: Vault {
-                amount: Account::unpack_from_slice(&info.data.borrow())
-                    .unwrap_or_default()
-                    .amount,
+                amount: if info.data.borrow().len() == Account::get_packed_len() {
+                    Account::unpack_from_slice(&info.data.borrow())
+                        .unwrap()
+                        .amount
+                } else {
+                    0
+                },
             },
         };
         pda.check()?;
@@ -127,7 +131,7 @@ impl PDAData for Distribute {}
 
 impl PDAMethods<Distribute> for PDA<'_, '_, Distribute> {
     fn size() -> usize {
-        std::mem::size_of::<Account>()
+        Account::get_packed_len()
     }
 
     fn check(&self) -> Result<(), ProgramError> {
@@ -293,7 +297,7 @@ mod test {
             Pubkey::find_program_address(&["VAULT".as_bytes(), seed_key.as_ref()], &program_id);
 
         {
-            let mut data = vec![0; PDA::<Vault>::size()];
+            let mut data = vec![0; Account::LEN];
             let info = AccountInfo::new(
                 &vault_key,
                 false,
@@ -310,7 +314,7 @@ mod test {
             assert_eq!(vault.data.amount, 0);
         }
         {
-            let data = &mut vec![0; PDA::<Vault>::size()];
+            let data = &mut vec![0; Account::LEN];
             Account {
                 amount: 1010,
                 ..Account::default()

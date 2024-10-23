@@ -175,7 +175,7 @@ mod test {
             program_id,
         );
         let distribute_bal = &mut Rent::default().minimum_balance(mem::size_of::<Account>());
-        let distribute_data = &mut [0; mem::size_of::<Account>()];
+        let distribute_data = &mut [0; Account::LEN];
         let distribute = AccountInfo::new(
             &distribute_key,
             false,
@@ -207,7 +207,7 @@ mod test {
         let (vault_key, _) =
             Pubkey::find_program_address(&["VAULT".as_bytes(), &seed_key.as_ref()], program_id);
         let vault_bal = &mut Rent::default().minimum_balance(mem::size_of::<Account>());
-        let vault_data = &mut [0; mem::size_of::<Account>()];
+        let vault_data = &mut [0; Account::LEN];
         let vault = AccountInfo::new(
             &vault_key,
             false,
