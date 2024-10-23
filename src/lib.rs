@@ -1,3 +1,5 @@
+#![cfg_attr(all(coverage_nightly, test), feature(coverage_attribute))]
+
 use solana_program::{
     account_info::AccountInfo, entrypoint, entrypoint::ProgramResult, pubkey::Pubkey,
 };
@@ -22,9 +24,7 @@ pub fn process_instruction<'a, 'b, 'c, 'd>(
 /// Sanity tests
 #[cfg(test)]
 mod test {
-    use super::process_instruction;
-    use crate::instruction::VestingInstruction;
-    use crate::pda::Vesting;
+    use coverage_helper::test;
 
     use borsh::{BorshDeserialize, BorshSerialize};
     use solana_program::clock::Epoch;
@@ -43,6 +43,10 @@ mod test {
         state::{Account, Mint},
     };
     use std::mem;
+
+    use crate::instruction::VestingInstruction;
+    use crate::pda::Vesting;
+    use crate::process_instruction;
 
     #[test]
     fn test_sample_workflow() {

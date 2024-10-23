@@ -206,11 +206,12 @@ fn calculate_amount(start: u64, cliff: u64, duration: u64, amount: u64, now: u64
 /// Sanity tests
 #[cfg(test)]
 mod test {
+    use coverage_helper::test;
+
     use solana_sdk::{account_info::AccountInfo, clock::Epoch, pubkey::Pubkey, rent::Rent};
 
     use crate::pda::{Distribute, Vault, Vesting, PDA};
-
-    use super::{calculate_amount, create_vesting, CreateVestingAccounts};
+    use crate::processor::{calculate_amount, create_vesting, CreateVestingAccounts};
 
     #[test]
     fn test_calculate_amount() {

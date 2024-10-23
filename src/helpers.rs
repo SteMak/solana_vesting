@@ -34,9 +34,7 @@ pub fn create_pda<'a, T: PDAMethods<D>, D: PDAData>(
         &system_instruction::create_account(payer.key, pda.key, lamports, space as u64, owner),
         &[payer.clone(), pda.clone()],
         &[&[pda_seeds, &[&[bump]]].concat()],
-    )?;
-
-    Ok(())
+    )
 }
 
 /// Check PDA corresponds seeds
@@ -69,32 +67,7 @@ pub fn init_token_pda<'a>(
             authority,
         )?,
         &[pda.clone(), mint.clone()],
-    )?;
-
-    Ok(())
-}
-
-/// Transfer spl-token to PDA, does not support multisigs
-pub fn transfer_to_pda<'a>(
-    pda: &AccountInfo<'a>,
-    wallet: &AccountInfo<'a>,
-    authority: &AccountInfo<'a>,
-    amount: u64,
-) -> Result<(), ProgramError> {
-    // Invoke `Transfer` instruction
-    invoke(
-        &spl_token::instruction::transfer(
-            &spl_token::id(),
-            wallet.key,
-            pda.key,
-            authority.key,
-            &[],
-            amount,
-        )?,
-        &[wallet.clone(), pda.clone(), authority.clone()],
-    )?;
-
-    Ok(())
+    )
 }
 
 /// Transfer spl-token from PDA
@@ -121,17 +94,17 @@ pub fn transfer_from_pda<'a>(
         )?,
         &[pda.clone(), wallet.clone(), pda.clone()],
         &[&[pda_seeds, &[&[bump]]].concat()],
-    )?;
-
-    Ok(())
+    )
 }
 
 /// Sanity tests
 #[cfg(test)]
 mod test {
+    use coverage_helper::test;
+
     use solana_sdk::pubkey::Pubkey;
 
-    use super::check_expected_address;
+    use crate::helpers::check_expected_address;
 
     #[test]
     fn test_expected_address() {

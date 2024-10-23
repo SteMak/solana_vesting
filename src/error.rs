@@ -18,9 +18,11 @@ impl From<CustomError> for u32 {
 /// Sanity tests
 #[cfg(test)]
 mod test {
-    use super::CustomError;
+    use coverage_helper::test;
 
     use solana_sdk::program_error::ProgramError;
+
+    use crate::error::CustomError;
 
     #[test]
     fn test_convert_error() {

@@ -253,11 +253,13 @@ impl<'a, 'b> PDA<'a, 'b, Vesting> {
 /// Sanity tests
 #[cfg(test)]
 mod test {
+    use coverage_helper::test;
+
     use solana_program::program_pack::Pack;
     use solana_sdk::{account_info::AccountInfo, clock::Epoch, pubkey::Pubkey};
     use spl_token::state::Account;
 
-    use super::{PDAMethods, Vault, Vesting, PDA};
+    use crate::pda::{Distribute, PDAMethods, Vault, Vesting, PDA};
 
     #[test]
     fn test_check_info() {
@@ -365,5 +367,51 @@ mod test {
         let vesting_new = &mut PDA::<Vesting>::new(&program_id, vesting.info, &seed_key).unwrap();
 
         assert_eq!(vesting_new.data.amount, 1010);
+    }
+
+    #[test]
+    fn test_write_prohibiden() {
+        let program_id = Pubkey::new_unique();
+        let seed_key = Pubkey::new_unique();
+        let lamports = &mut 0;
+
+        let (vault_key, _) =
+            Pubkey::find_program_address(&["VAULT".as_bytes(), seed_key.as_ref()], &program_id);
+
+        let mut data = vec![0; PDA::<Vault>::size()];
+        let info = AccountInfo::new(
+            &vault_key,
+            false,
+            false,
+            lamports,
+            &mut data,
+            &program_id,
+            false,
+            Epoch::default(),
+        );
+
+        let vault = &mut PDA::<Vault>::new(&program_id, &info, &seed_key).unwrap();
+        vault.data.amount = 1010;
+        vault.write().unwrap_err();
+
+        let (distribute_key, _) = Pubkey::find_program_address(
+            &["DISTRIBUTE".as_bytes(), seed_key.as_ref()],
+            &program_id,
+        );
+
+        let mut data = vec![0; PDA::<Distribute>::size()];
+        let info = AccountInfo::new(
+            &distribute_key,
+            false,
+            false,
+            lamports,
+            &mut data,
+            &program_id,
+            false,
+            Epoch::default(),
+        );
+
+        let distribute = &mut PDA::<Distribute>::new(&program_id, &info, &seed_key).unwrap();
+        distribute.write().unwrap_err();
     }
 }
